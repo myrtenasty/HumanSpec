@@ -10,18 +10,19 @@
 
 import path from 'path';
 import type { CommandContent, ToolCommandAdapter } from '../types.js';
+import type { CommandIdentity } from '../identity.js';
 import { escapeYamlValue } from '../yaml.js';
 
 /**
  * Qwen adapter for command generation.
- * File path: .qwen/commands/opsx-<id>.md
+ * File path: .qwen/commands/<namespace>-<id>.md
  * Format: Markdown with description frontmatter
  */
 export const qwenAdapter: ToolCommandAdapter = {
   toolId: 'qwen',
 
-  getFilePath(commandId: string): string {
-    return path.join('.qwen', 'commands', `opsx-${commandId}.md`);
+  getFilePath(identity: CommandIdentity): string {
+    return path.join('.qwen', 'commands', `${identity.namespace}-${identity.id}.md`);
   },
 
   formatFile(content: CommandContent): string {

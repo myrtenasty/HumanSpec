@@ -8,6 +8,7 @@
 
 import path from 'path';
 import type { CommandContent, ToolCommandAdapter } from '../types.js';
+import type { CommandIdentity } from '../identity.js';
 import { escapeYamlValue } from '../yaml.js';
 
 const OMP_INPUT_HEADING = /^\*\*Input\*\*:[^\n]*$/m;
@@ -25,7 +26,7 @@ function injectOmpArgs(body: string): string {
 
 /**
  * Oh My Pi adapter for command generation.
- * File path: .omp/commands/opsx-<id>.md
+ * File path: .omp/commands/<namespace>-<id>.md
  * Frontmatter: description
  *
  * OMP uses the filename (minus .md) as the slash command name, so
@@ -37,8 +38,8 @@ function injectOmpArgs(body: string): string {
 export const ohMyPiAdapter: ToolCommandAdapter = {
   toolId: 'oh-my-pi',
 
-  getFilePath(commandId: string): string {
-    return path.join('.omp', 'commands', `opsx-${commandId}.md`);
+  getFilePath(identity: CommandIdentity): string {
+    return path.join('.omp', 'commands', `${identity.namespace}-${identity.id}.md`);
   },
 
   formatFile(content: CommandContent): string {

@@ -23,6 +23,24 @@ export type {
   GeneratedCommand,
 } from './types.js';
 
+// Identity
+export type { CommandIdentity } from './identity.js';
+export {
+  DEFAULT_COMMAND_NAMESPACE,
+  validateCommandNamespace,
+  resolveCommandIdentity,
+} from './identity.js';
+
+// Invocation
+export {
+  getInvocationForAdapter,
+  getInvocationStyleForPath,
+  formatCommandInvocation,
+  needsInvocationRewrite,
+  CANONICAL_INVOCATION,
+} from './invocation.js';
+export type { CommandInvocation, CommandInvocationStyle } from './invocation.js';
+
 // Registry
 export { CommandAdapterRegistry } from './registry.js';
 

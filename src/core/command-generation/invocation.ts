@@ -1,7 +1,7 @@
 /**
  * Command Invocation
  *
- * How a tool spells an OpenSpec command has two parts, and only one of them
+ * How a tool spells a command has two parts, and only one of them
  * can be read off the file the adapter writes:
  *
  * - The *name* comes from the file. `.../commands/opsx/<id>.md` is namespaced
@@ -24,11 +24,12 @@
 
 import path from 'path';
 import type { ToolCommandAdapter } from './types.js';
+import { DEFAULT_COMMAND_NAMESPACE } from './identity.js';
 
 export type CommandInvocationStyle = 'namespaced' | 'flat';
 
 /**
- * Everything needed to spell one of a tool's OpenSpec commands.
+ * Everything needed to spell one of a tool's commands.
  */
 export interface CommandInvocation {
   /** How the command file names the command. */
@@ -43,18 +44,24 @@ export const CANONICAL_INVOCATION: CommandInvocation = { style: 'namespaced', pr
 /**
  * Classifies a generated command file by the name the tool will answer to.
  *
- * The test is the filename, not the directory: an `opsx-` prefix means the
- * filename is the command. Every other shape is treated as namespaced, which
- * is what all seven `opsx/<id>.*` adapters need. An adapter that neither
- * prefixes the filename nor nests under `opsx/` would land here too — none
- * does, and the registry-wide test in invocation.test.ts fails if one appears.
+ * The test is the filename, not the directory: a `<namespace>-` prefix means
+ * the filename is the command, so the tool registers `<namespace>-<id>`.
+ * Every other shape is treated as namespaced, which is what the
+ * `<namespace>/<id>.*` adapters need. An adapter that neither prefixes the
+ * filename nor nests under the namespace directory would land here too —
+ * none does, and the registry-wide test in invocation.test.ts fails if one
+ * appears.
  *
  * @param commandFilePath - Path returned by an adapter's `getFilePath`
- * @returns 'flat' when the filename carries the `opsx-` prefix, otherwise
- *          'namespaced'
+ * @param namespace - The resolved namespace of the command the path names
+ * @returns 'flat' when the filename carries the `<namespace>-` prefix,
+ *          otherwise 'namespaced'
  */
-export function getInvocationStyleForPath(commandFilePath: string): CommandInvocationStyle {
-  return path.basename(commandFilePath).startsWith('opsx-') ? 'flat' : 'namespaced';
+export function getInvocationStyleForPath(
+  commandFilePath: string,
+  namespace: string = DEFAULT_COMMAND_NAMESPACE
+): CommandInvocationStyle {
+  return path.basename(commandFilePath).startsWith(`${namespace}-`) ? 'flat' : 'namespaced';
 }
 
 /**
@@ -62,12 +69,17 @@ export function getInvocationStyleForPath(commandFilePath: string): CommandInvoc
  * files its adapter writes, the prefix from the adapter's own declaration.
  *
  * @param adapter - The tool-specific command adapter
+ * @param namespace - The namespace to classify the adapter's path by,
+ *        defaulting to the OpenSpec default
  * @returns The invocation shared by every command that adapter generates
  */
-export function getInvocationForAdapter(adapter: ToolCommandAdapter): CommandInvocation {
+export function getInvocationForAdapter(
+  adapter: ToolCommandAdapter,
+  namespace: string = DEFAULT_COMMAND_NAMESPACE
+): CommandInvocation {
   return {
     // Any command id works: every adapter applies one naming rule to all of them.
-    style: getInvocationStyleForPath(adapter.getFilePath('explore')),
+    style: getInvocationStyleForPath(adapter.getFilePath({ namespace, id: 'explore' }), namespace),
     prefix: adapter.invocationPrefix ?? CANONICAL_INVOCATION.prefix,
   };
 }
@@ -77,14 +89,18 @@ export function getInvocationForAdapter(adapter: ToolCommandAdapter): CommandInv
  *
  * @param invocation - The tool's invocation, from getInvocationForAdapter()
  * @param commandId - The command identifier (e.g. 'apply')
- * @returns What the user types, e.g. `/opsx:apply`, `/opsx-apply`, `@opsx-apply`
+ * @param namespace - The command's namespace, defaulting to the OpenSpec
+ *        default so existing spellings stay `/opsx:*`
+ * @returns What the user types, e.g. `/opsx:apply`, `/opsx-apply`,
+ *          `@opsx-apply`, `/humanspec:propose`, `@humanspec-propose`
  */
 export function formatCommandInvocation(
   invocation: CommandInvocation,
-  commandId: string
+  commandId: string,
+  namespace: string = DEFAULT_COMMAND_NAMESPACE
 ): string {
   const separator = invocation.style === 'namespaced' ? ':' : '-';
-  return `${invocation.prefix}opsx${separator}${commandId}`;
+  return `${invocation.prefix}${namespace}${separator}${commandId}`;
 }
 
 /**

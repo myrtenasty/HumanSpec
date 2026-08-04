@@ -53,13 +53,13 @@ describe('command-generation/adapters', () => {
     });
 
     it('should generate correct file path', () => {
-      const filePath = claudeAdapter.getFilePath('explore');
+      const filePath = claudeAdapter.getFilePath({ namespace: 'opsx', id: 'explore' });
       expect(filePath).toBe(path.join('.claude', 'commands', 'opsx', 'explore.md'));
     });
 
     it('should generate correct file path for different command IDs', () => {
-      expect(claudeAdapter.getFilePath('new')).toBe(path.join('.claude', 'commands', 'opsx', 'new.md'));
-      expect(claudeAdapter.getFilePath('bulk-archive')).toBe(path.join('.claude', 'commands', 'opsx', 'bulk-archive.md'));
+      expect(claudeAdapter.getFilePath({ namespace: 'opsx', id: 'new' })).toBe(path.join('.claude', 'commands', 'opsx', 'new.md'));
+      expect(claudeAdapter.getFilePath({ namespace: 'opsx', id: 'bulk-archive' })).toBe(path.join('.claude', 'commands', 'opsx', 'bulk-archive.md'));
     });
 
     it('should format file with correct YAML frontmatter', () => {
@@ -88,13 +88,13 @@ describe('command-generation/adapters', () => {
     });
 
     it('should generate correct file path with opsx- prefix', () => {
-      const filePath = cursorAdapter.getFilePath('explore');
+      const filePath = cursorAdapter.getFilePath({ namespace: 'opsx', id: 'explore' });
       expect(filePath).toBe(path.join('.cursor', 'commands', 'opsx-explore.md'));
     });
 
     it('should generate correct file paths for different commands', () => {
-      expect(cursorAdapter.getFilePath('new')).toBe(path.join('.cursor', 'commands', 'opsx-new.md'));
-      expect(cursorAdapter.getFilePath('bulk-archive')).toBe(path.join('.cursor', 'commands', 'opsx-bulk-archive.md'));
+      expect(cursorAdapter.getFilePath({ namespace: 'opsx', id: 'new' })).toBe(path.join('.cursor', 'commands', 'opsx-new.md'));
+      expect(cursorAdapter.getFilePath({ namespace: 'opsx', id: 'bulk-archive' })).toBe(path.join('.cursor', 'commands', 'opsx-bulk-archive.md'));
     });
 
     it('should format file with Cursor-specific frontmatter', () => {
@@ -121,7 +121,7 @@ describe('command-generation/adapters', () => {
     });
 
     it('should generate correct file path', () => {
-      const filePath = devinAdapter.getFilePath('explore');
+      const filePath = devinAdapter.getFilePath({ namespace: 'opsx', id: 'explore' });
       expect(filePath).toBe(path.join('.devin', 'workflows', 'opsx-explore.md'));
     });
 
@@ -158,7 +158,7 @@ describe('command-generation/adapters', () => {
     });
 
     it('should generate correct file path', () => {
-      const filePath = amazonQAdapter.getFilePath('explore');
+      const filePath = amazonQAdapter.getFilePath({ namespace: 'opsx', id: 'explore' });
       expect(filePath).toBe(path.join('.amazonq', 'prompts', 'opsx-explore.md'));
     });
 
@@ -177,7 +177,7 @@ describe('command-generation/adapters', () => {
     });
 
     it('should generate correct file path', () => {
-      const filePath = antigravityAdapter.getFilePath('explore');
+      const filePath = antigravityAdapter.getFilePath({ namespace: 'opsx', id: 'explore' });
       expect(filePath).toBe(path.join('.agent', 'workflows', 'opsx-explore.md'));
     });
 
@@ -196,7 +196,7 @@ describe('command-generation/adapters', () => {
     });
 
     it('should generate correct file path', () => {
-      const filePath = auggieAdapter.getFilePath('explore');
+      const filePath = auggieAdapter.getFilePath({ namespace: 'opsx', id: 'explore' });
       expect(filePath).toBe(path.join('.augment', 'commands', 'opsx-explore.md'));
     });
 
@@ -217,13 +217,13 @@ describe('command-generation/adapters', () => {
     });
 
     it('should generate correct file path', () => {
-      const filePath = bobAdapter.getFilePath('explore');
+      const filePath = bobAdapter.getFilePath({ namespace: 'opsx', id: 'explore' });
       expect(filePath).toBe(path.join('.bob', 'commands', 'opsx-explore.md'));
     });
 
     it('should generate correct file paths for different commands', () => {
-      expect(bobAdapter.getFilePath('new')).toBe(path.join('.bob', 'commands', 'opsx-new.md'));
-      expect(bobAdapter.getFilePath('bulk-archive')).toBe(path.join('.bob', 'commands', 'opsx-bulk-archive.md'));
+      expect(bobAdapter.getFilePath({ namespace: 'opsx', id: 'new' })).toBe(path.join('.bob', 'commands', 'opsx-new.md'));
+      expect(bobAdapter.getFilePath({ namespace: 'opsx', id: 'bulk-archive' })).toBe(path.join('.bob', 'commands', 'opsx-bulk-archive.md'));
     });
 
     it('should format file with description and argument-hint frontmatter', () => {
@@ -281,7 +281,7 @@ describe('command-generation/adapters', () => {
     });
 
     it('should generate correct file path', () => {
-      const filePath = clineAdapter.getFilePath('explore');
+      const filePath = clineAdapter.getFilePath({ namespace: 'opsx', id: 'explore' });
       expect(filePath).toBe(path.join('.clinerules', 'workflows', 'opsx-explore.md'));
     });
 
@@ -300,7 +300,7 @@ describe('command-generation/adapters', () => {
     });
 
     it('should generate correct file path with nested opsx folder', () => {
-      const filePath = codebuddyAdapter.getFilePath('explore');
+      const filePath = codebuddyAdapter.getFilePath({ namespace: 'opsx', id: 'explore' });
       expect(filePath).toBe(path.join('.codebuddy', 'commands', 'opsx', 'explore.md'));
     });
 
@@ -321,7 +321,7 @@ describe('command-generation/adapters', () => {
     });
 
     it('should generate correct file path with .prompt extension', () => {
-      const filePath = continueAdapter.getFilePath('explore');
+      const filePath = continueAdapter.getFilePath({ namespace: 'opsx', id: 'explore' });
       expect(filePath).toBe(path.join('.continue', 'prompts', 'opsx-explore.prompt'));
     });
 
@@ -342,7 +342,7 @@ describe('command-generation/adapters', () => {
     });
 
     it('should generate correct file path', () => {
-      const filePath = costrictAdapter.getFilePath('explore');
+      const filePath = costrictAdapter.getFilePath({ namespace: 'opsx', id: 'explore' });
       expect(filePath).toBe(path.join('.cospec', 'openspec', 'commands', 'opsx-explore.md'));
     });
 
@@ -362,7 +362,7 @@ describe('command-generation/adapters', () => {
     });
 
     it('should generate correct file path with nested opsx folder', () => {
-      const filePath = crushAdapter.getFilePath('explore');
+      const filePath = crushAdapter.getFilePath({ namespace: 'opsx', id: 'explore' });
       expect(filePath).toBe(path.join('.crush', 'commands', 'opsx', 'explore.md'));
     });
 
@@ -384,7 +384,7 @@ describe('command-generation/adapters', () => {
     });
 
     it('should generate correct file path', () => {
-      const filePath = factoryAdapter.getFilePath('explore');
+      const filePath = factoryAdapter.getFilePath({ namespace: 'opsx', id: 'explore' });
       expect(filePath).toBe(path.join('.factory', 'commands', 'opsx-explore.md'));
     });
 
@@ -404,7 +404,7 @@ describe('command-generation/adapters', () => {
     });
 
     it('should generate correct file path with .toml extension', () => {
-      const filePath = geminiAdapter.getFilePath('explore');
+      const filePath = geminiAdapter.getFilePath({ namespace: 'opsx', id: 'explore' });
       expect(filePath).toBe(path.join('.gemini', 'commands', 'opsx', 'explore.toml'));
     });
 
@@ -472,7 +472,7 @@ describe('command-generation/adapters', () => {
     });
 
     it('should generate correct file path with .prompt.md extension', () => {
-      const filePath = githubCopilotAdapter.getFilePath('explore');
+      const filePath = githubCopilotAdapter.getFilePath({ namespace: 'opsx', id: 'explore' });
       expect(filePath).toBe(path.join('.github', 'prompts', 'opsx-explore.prompt.md'));
     });
 
@@ -491,7 +491,7 @@ describe('command-generation/adapters', () => {
     });
 
     it('should generate correct file path', () => {
-      const filePath = iflowAdapter.getFilePath('explore');
+      const filePath = iflowAdapter.getFilePath({ namespace: 'opsx', id: 'explore' });
       expect(filePath).toBe(path.join('.iflow', 'commands', 'opsx-explore.md'));
     });
 
@@ -513,7 +513,7 @@ describe('command-generation/adapters', () => {
     });
 
     it('should generate correct file path', () => {
-      const filePath = kilocodeAdapter.getFilePath('explore');
+      const filePath = kilocodeAdapter.getFilePath({ namespace: 'opsx', id: 'explore' });
       expect(filePath).toBe(path.join('.kilocode', 'workflows', 'opsx-explore.md'));
     });
 
@@ -530,7 +530,7 @@ describe('command-generation/adapters', () => {
     });
 
     it('should generate correct file path', () => {
-      const filePath = opencodeAdapter.getFilePath('explore');
+      const filePath = opencodeAdapter.getFilePath({ namespace: 'opsx', id: 'explore' });
       expect(filePath).toBe(path.join('.opencode', 'commands', 'opsx-explore.md'));
     });
 
@@ -576,7 +576,7 @@ describe('command-generation/adapters', () => {
     });
 
     it('should generate correct file path with nested opsx folder', () => {
-      const filePath = qoderAdapter.getFilePath('explore');
+      const filePath = qoderAdapter.getFilePath({ namespace: 'opsx', id: 'explore' });
       expect(filePath).toBe(path.join('.qoder', 'commands', 'opsx', 'explore.md'));
     });
 
@@ -598,7 +598,7 @@ describe('command-generation/adapters', () => {
     });
 
     it('should generate correct file path with .md extension', () => {
-      const filePath = qwenAdapter.getFilePath('explore');
+      const filePath = qwenAdapter.getFilePath({ namespace: 'opsx', id: 'explore' });
       expect(filePath).toBe(path.join('.qwen', 'commands', 'opsx-explore.md'));
     });
 
@@ -638,13 +638,13 @@ describe('command-generation/adapters', () => {
     });
 
     it('should generate correct file path', () => {
-      const filePath = piAdapter.getFilePath('explore');
+      const filePath = piAdapter.getFilePath({ namespace: 'opsx', id: 'explore' });
       expect(filePath).toBe(path.join('.pi', 'prompts', 'opsx-explore.md'));
     });
 
     it('should generate correct file paths for different commands', () => {
-      expect(piAdapter.getFilePath('new')).toBe(path.join('.pi', 'prompts', 'opsx-new.md'));
-      expect(piAdapter.getFilePath('bulk-archive')).toBe(path.join('.pi', 'prompts', 'opsx-bulk-archive.md'));
+      expect(piAdapter.getFilePath({ namespace: 'opsx', id: 'new' })).toBe(path.join('.pi', 'prompts', 'opsx-new.md'));
+      expect(piAdapter.getFilePath({ namespace: 'opsx', id: 'bulk-archive' })).toBe(path.join('.pi', 'prompts', 'opsx-bulk-archive.md'));
     });
 
     it('should format file with description frontmatter', () => {
@@ -702,13 +702,13 @@ describe('command-generation/adapters', () => {
     });
 
     it('should generate correct file path', () => {
-      const filePath = ohMyPiAdapter.getFilePath('explore');
+      const filePath = ohMyPiAdapter.getFilePath({ namespace: 'opsx', id: 'explore' });
       expect(filePath).toBe(path.join('.omp', 'commands', 'opsx-explore.md'));
     });
 
     it('should generate correct file paths for different commands', () => {
-      expect(ohMyPiAdapter.getFilePath('new')).toBe(path.join('.omp', 'commands', 'opsx-new.md'));
-      expect(ohMyPiAdapter.getFilePath('bulk-archive')).toBe(path.join('.omp', 'commands', 'opsx-bulk-archive.md'));
+      expect(ohMyPiAdapter.getFilePath({ namespace: 'opsx', id: 'new' })).toBe(path.join('.omp', 'commands', 'opsx-new.md'));
+      expect(ohMyPiAdapter.getFilePath({ namespace: 'opsx', id: 'bulk-archive' })).toBe(path.join('.omp', 'commands', 'opsx-bulk-archive.md'));
     });
 
     it('should format file with description frontmatter', () => {
@@ -792,7 +792,7 @@ describe('command-generation/adapters', () => {
     });
 
     it('should generate correct file path', () => {
-      const filePath = roocodeAdapter.getFilePath('explore');
+      const filePath = roocodeAdapter.getFilePath({ namespace: 'opsx', id: 'explore' });
       expect(filePath).toBe(path.join('.roo', 'commands', 'opsx-explore.md'));
     });
 
@@ -811,13 +811,13 @@ describe('command-generation/adapters', () => {
     });
 
     it('should generate correct file path', () => {
-      const filePath = traeAdapter.getFilePath('explore');
+      const filePath = traeAdapter.getFilePath({ namespace: 'opsx', id: 'explore' });
       expect(filePath).toBe(path.join('.trae', 'commands', 'opsx-explore.md'));
     });
 
     it('should generate correct file paths for different commands', () => {
-      expect(traeAdapter.getFilePath('new')).toBe(path.join('.trae', 'commands', 'opsx-new.md'));
-      expect(traeAdapter.getFilePath('bulk-archive')).toBe(path.join('.trae', 'commands', 'opsx-bulk-archive.md'));
+      expect(traeAdapter.getFilePath({ namespace: 'opsx', id: 'new' })).toBe(path.join('.trae', 'commands', 'opsx-new.md'));
+      expect(traeAdapter.getFilePath({ namespace: 'opsx', id: 'bulk-archive' })).toBe(path.join('.trae', 'commands', 'opsx-bulk-archive.md'));
     });
 
     it('should format file with name and description frontmatter', () => {
@@ -882,18 +882,18 @@ describe('command-generation/adapters', () => {
     });
 
     it('should generate correct file path under .zcode/commands/opsx', () => {
-      const filePath = zcodeAdapter.getFilePath('explore');
+      const filePath = zcodeAdapter.getFilePath({ namespace: 'opsx', id: 'explore' });
       expect(filePath).toBe(path.join('.zcode', 'commands', 'opsx', 'explore.md'));
     });
 
     it('should generate correct file paths for different command IDs', () => {
-      expect(zcodeAdapter.getFilePath('new')).toBe(path.join('.zcode', 'commands', 'opsx', 'new.md'));
-      expect(zcodeAdapter.getFilePath('bulk-archive')).toBe(path.join('.zcode', 'commands', 'opsx', 'bulk-archive.md'));
+      expect(zcodeAdapter.getFilePath({ namespace: 'opsx', id: 'new' })).toBe(path.join('.zcode', 'commands', 'opsx', 'new.md'));
+      expect(zcodeAdapter.getFilePath({ namespace: 'opsx', id: 'bulk-archive' })).toBe(path.join('.zcode', 'commands', 'opsx', 'bulk-archive.md'));
     });
 
     it('should keep command paths under .zcode and never reference .agents', () => {
       for (const id of ['explore', 'new', 'apply', 'sync', 'archive', 'bulk-archive']) {
-        const filePath = zcodeAdapter.getFilePath(id);
+        const filePath = zcodeAdapter.getFilePath({ namespace: 'opsx', id });
         expect(filePath).toContain('.zcode');
         expect(filePath).not.toContain('.agents');
       }
@@ -986,18 +986,18 @@ describe('command-generation/adapters', () => {
   describe('cross-platform path handling', () => {
     it('Claude adapter uses path.join for paths', () => {
       // path.join handles platform-specific separators
-      const filePath = claudeAdapter.getFilePath('test');
+      const filePath = claudeAdapter.getFilePath({ namespace: 'opsx', id: 'test' });
       // On any platform, path.join returns the correct separator
       expect(filePath.split(path.sep)).toEqual(['.claude', 'commands', 'opsx', 'test.md']);
     });
 
     it('Cursor adapter uses path.join for paths', () => {
-      const filePath = cursorAdapter.getFilePath('test');
+      const filePath = cursorAdapter.getFilePath({ namespace: 'opsx', id: 'test' });
       expect(filePath.split(path.sep)).toEqual(['.cursor', 'commands', 'opsx-test.md']);
     });
 
     it('Devin adapter uses path.join for paths', () => {
-      const filePath = devinAdapter.getFilePath('test');
+      const filePath = devinAdapter.getFilePath({ namespace: 'opsx', id: 'test' });
       expect(filePath.split(path.sep)).toEqual(['.devin', 'workflows', 'opsx-test.md']);
     });
 
@@ -1012,9 +1012,110 @@ describe('command-generation/adapters', () => {
         traeAdapter, zcodeAdapter
       ];
       for (const adapter of adapters) {
-        const filePath = adapter.getFilePath('test');
+        const filePath = adapter.getFilePath({ namespace: 'opsx', id: 'test' });
         expect(filePath.length).toBeGreaterThan(0);
         expect(filePath.includes(path.sep) || filePath.includes('.')).toBe(true);
+      }
+    });
+  });
+
+  describe('namespace projection', () => {
+    it('builds a <namespace>/<id> path for a directory-namespaced adapter', () => {
+      expect(claudeAdapter.getFilePath({ namespace: 'humanspec', id: 'propose' })).toBe(
+        path.join('.claude', 'commands', 'humanspec', 'propose.md')
+      );
+      expect(geminiAdapter.getFilePath({ namespace: 'humanspec', id: 'propose' })).toBe(
+        path.join('.gemini', 'commands', 'humanspec', 'propose.toml')
+      );
+    });
+
+    it('builds a <namespace>-<id> filename for a flat adapter', () => {
+      expect(cursorAdapter.getFilePath({ namespace: 'humanspec', id: 'propose' })).toBe(
+        path.join('.cursor', 'commands', 'humanspec-propose.md')
+      );
+      expect(devinAdapter.getFilePath({ namespace: 'humanspec', id: 'propose' })).toBe(
+        path.join('.devin', 'workflows', 'humanspec-propose.md')
+      );
+      expect(traeAdapter.getFilePath({ namespace: 'humanspec', id: 'propose' })).toBe(
+        path.join('.trae', 'commands', 'humanspec-propose.md')
+      );
+      expect(githubCopilotAdapter.getFilePath({ namespace: 'humanspec', id: 'propose' })).toBe(
+        path.join('.github', 'prompts', 'humanspec-propose.prompt.md')
+      );
+    });
+
+    it('keeps extensions and frontmatter while swapping only the namespace', () => {
+      const content: CommandContent = {
+        id: 'propose',
+        namespace: 'humanspec',
+        name: 'HumanSpec Propose',
+        description: 'Propose a change',
+        category: 'HumanSpec',
+        tags: ['humanspec'],
+        body: 'Propose it.',
+      };
+
+      // Flat adapters that name the command in frontmatter follow the file:
+      // /humanspec-propose registers humanspec-propose.md.
+      const cursorOutput = cursorAdapter.formatFile(content);
+      expect(cursorOutput).toContain('name: "/humanspec-propose"');
+      expect(cursorOutput).toContain('id: "humanspec-propose"');
+
+      const iflowOutput = iflowAdapter.formatFile(content);
+      expect(iflowOutput).toContain('name: "/humanspec-propose"');
+      expect(iflowOutput).toContain('id: "humanspec-propose"');
+
+      const continueOutput = continueAdapter.formatFile(content);
+      expect(continueOutput).toContain('name: "humanspec-propose"');
+
+      // Namespaced adapters keep their presentation fields untouched.
+      const claudeOutput = claudeAdapter.formatFile(content);
+      expect(claudeOutput).toContain('name: "HumanSpec Propose"');
+      expect(claudeOutput).toContain('category: "HumanSpec"');
+    });
+
+    it('resolves an omitted namespace to opsx for frontmatter names', () => {
+      const content: CommandContent = {
+        id: 'propose',
+        name: 'OpenSpec Propose',
+        description: 'Propose a change',
+        category: 'OpenSpec',
+        tags: [],
+        body: 'Propose it.',
+      };
+      expect(cursorAdapter.formatFile(content)).toContain('name: "/opsx-propose"');
+      expect(cursorAdapter.formatFile(content)).toContain('id: "opsx-propose"');
+    });
+  });
+
+  describe('Windows path projection', () => {
+    // Windows-valid separators are proven on every platform by normalizing
+    // the adapter's output with path.win32: on Windows the output already
+    // uses backslashes and normalization is a no-op; elsewhere the same
+    // segments must render as a valid Windows path. Identity must never
+    // depend on a hardcoded forward slash.
+    it('renders a directory-namespaced command path with Windows separators', () => {
+      const filePath = claudeAdapter.getFilePath({ namespace: 'humanspec', id: 'propose' });
+      expect(filePath.split(path.sep)).toEqual(['.claude', 'commands', 'humanspec', 'propose.md']);
+      expect(path.win32.normalize(filePath)).toBe(
+        path.win32.join('.claude', 'commands', 'humanspec', 'propose.md')
+      );
+    });
+
+    it('renders a flat command path with Windows separators', () => {
+      const filePath = cursorAdapter.getFilePath({ namespace: 'humanspec', id: 'propose' });
+      expect(filePath.split(path.sep)).toEqual(['.cursor', 'commands', 'humanspec-propose.md']);
+      expect(path.win32.normalize(filePath)).toBe(
+        path.win32.join('.cursor', 'commands', 'humanspec-propose.md')
+      );
+    });
+
+    it('keeps every adapter path beneath its command directory on Windows', () => {
+      for (const adapter of CommandAdapterRegistry.getAll()) {
+        const filePath = adapter.getFilePath({ namespace: 'humanspec', id: 'propose' });
+        const winPath = path.win32.normalize(filePath);
+        expect(winPath, adapter.toolId).not.toContain('/');
+        expect(winPath.split(path.win32.sep).length, adapter.toolId).toBeGreaterThan(1);
       }
     });
   });

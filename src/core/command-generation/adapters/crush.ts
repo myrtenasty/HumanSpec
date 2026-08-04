@@ -6,18 +6,19 @@
 
 import path from 'path';
 import type { CommandContent, ToolCommandAdapter } from '../types.js';
+import type { CommandIdentity } from '../identity.js';
 import { escapeYamlValue, formatTagsArray } from '../yaml.js';
 
 /**
  * Crush adapter for command generation.
- * File path: .crush/commands/opsx/<id>.md
+ * File path: .crush/commands/<namespace>/<id>.md
  * Frontmatter: name, description, category, tags
  */
 export const crushAdapter: ToolCommandAdapter = {
   toolId: 'crush',
 
-  getFilePath(commandId: string): string {
-    return path.join('.crush', 'commands', 'opsx', `${commandId}.md`);
+  getFilePath(identity: CommandIdentity): string {
+    return path.join('.crush', 'commands', identity.namespace, `${identity.id}.md`);
   },
 
   formatFile(content: CommandContent): string {

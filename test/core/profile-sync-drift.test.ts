@@ -19,7 +19,7 @@ function writeSkill(projectDir: string, workflowId: string): void {
 function writeCommand(projectDir: string, workflowId: string): void {
   const adapter = CommandAdapterRegistry.get('claude');
   if (!adapter) throw new Error('Claude adapter unavailable in test environment');
-  const cmdPath = adapter.getFilePath(workflowId);
+  const cmdPath = adapter.getFilePath({ namespace: 'opsx', id: workflowId });
   const fullPath = path.isAbsolute(cmdPath) ? cmdPath : path.join(projectDir, cmdPath);
   fs.mkdirSync(path.dirname(fullPath), { recursive: true });
   fs.writeFileSync(fullPath, `# ${workflowId}\n`);

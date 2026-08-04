@@ -4,7 +4,7 @@ import { AI_TOOLS } from './config.js';
 import type { Delivery } from './global-config.js';
 import { ALL_WORKFLOWS } from './profiles.js';
 import { CommandAdapterRegistry } from './command-generation/index.js';
-import { getConfiguredTools } from './shared/index.js';
+import { MANAGED_COMMANDS, getConfiguredTools } from './shared/index.js';
 import {
   shouldGenerateCommandsForTool,
   shouldGenerateSkillsForTool,
@@ -100,7 +100,9 @@ export function hasToolProfileOrDeliveryDrift(
 
   if (shouldGenerateCommands && adapter) {
     for (const workflow of knownDesiredWorkflows) {
-      const cmdPath = adapter.getFilePath(workflow);
+      const descriptor = MANAGED_COMMANDS.find((c) => c.id === workflow);
+      if (!descriptor) continue;
+      const cmdPath = adapter.getFilePath(descriptor);
       const fullPath = path.isAbsolute(cmdPath) ? cmdPath : path.join(projectPath, cmdPath);
       if (!fs.existsSync(fullPath)) {
         return true;
@@ -108,17 +110,17 @@ export function hasToolProfileOrDeliveryDrift(
     }
 
     // Deselecting workflows in a profile should trigger sync.
-    for (const workflow of ALL_WORKFLOWS) {
-      if (desiredWorkflowSet.has(workflow)) continue;
-      const cmdPath = adapter.getFilePath(workflow);
+    for (const descriptor of MANAGED_COMMANDS) {
+      if (desiredWorkflowSet.has(descriptor.id)) continue;
+      const cmdPath = adapter.getFilePath(descriptor);
       const fullPath = path.isAbsolute(cmdPath) ? cmdPath : path.join(projectPath, cmdPath);
       if (fs.existsSync(fullPath)) {
         return true;
       }
     }
   } else if (shouldReconcileCommandFilesForTool(toolId, delivery) && adapter) {
-    for (const workflow of ALL_WORKFLOWS) {
-      const cmdPath = adapter.getFilePath(workflow);
+    for (const descriptor of MANAGED_COMMANDS) {
+      const cmdPath = adapter.getFilePath(descriptor);
       const fullPath = path.isAbsolute(cmdPath) ? cmdPath : path.join(projectPath, cmdPath);
       if (fs.existsSync(fullPath)) {
         return true;
@@ -168,11 +170,11 @@ function getInstalledWorkflowsForTool(
   if (options.includeCommands) {
     const adapter = CommandAdapterRegistry.get(toolId);
     if (adapter) {
-      for (const workflow of ALL_WORKFLOWS) {
-        const cmdPath = adapter.getFilePath(workflow);
+      for (const descriptor of MANAGED_COMMANDS) {
+        const cmdPath = adapter.getFilePath(descriptor);
         const fullPath = path.isAbsolute(cmdPath) ? cmdPath : path.join(projectPath, cmdPath);
         if (fs.existsSync(fullPath)) {
-          installed.add(workflow);
+          installed.add(descriptor.id);
         }
       }
     }

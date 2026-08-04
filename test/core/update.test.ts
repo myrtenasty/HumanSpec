@@ -507,6 +507,38 @@ Old instructions content
       }
     });
 
+    it('removes only registered namespace/ID command files when delivery drops commands', async () => {
+      setMockConfig({ featureFlags: {}, profile: 'core', delivery: 'skills' });
+
+      // Configure Claude via a skill so update runs its command cleanup.
+      const skillsDir = path.join(testDir, '.claude', 'skills');
+      await fs.mkdir(path.join(skillsDir, 'openspec-explore'), { recursive: true });
+      await fs.writeFile(path.join(skillsDir, 'openspec-explore', 'SKILL.md'), 'old content');
+
+      // Managed command files plus files that must survive cleanup: a
+      // command in an unregistered namespace, a similarly named user file,
+      // and a README beside the managed directory.
+      const commandsDir = path.join(testDir, '.claude', 'commands');
+      const managedDir = path.join(commandsDir, 'opsx');
+      await fs.mkdir(managedDir, { recursive: true });
+      await fs.writeFile(path.join(managedDir, 'explore.md'), '# managed');
+      await fs.writeFile(path.join(managedDir, 'propose.md'), '# managed');
+      await fs.mkdir(path.join(commandsDir, 'humanspec'), { recursive: true });
+      await fs.writeFile(path.join(commandsDir, 'humanspec', 'propose.md'), '# humanspec');
+      await fs.writeFile(path.join(managedDir, 'user-apply.md'), '# user');
+      await fs.writeFile(path.join(managedDir, 'README.md'), '# readme');
+
+      await new UpdateCommand({ force: true }).execute(testDir);
+
+      // Registered namespace/ID paths are removed...
+      expect(await FileSystemUtils.fileExists(path.join(managedDir, 'explore.md'))).toBe(false);
+      expect(await FileSystemUtils.fileExists(path.join(managedDir, 'propose.md'))).toBe(false);
+      // ...while unregistered namespaces and user files are preserved.
+      expect(await FileSystemUtils.fileExists(path.join(commandsDir, 'humanspec', 'propose.md'))).toBe(true);
+      expect(await FileSystemUtils.fileExists(path.join(managedDir, 'user-apply.md'))).toBe(true);
+      expect(await FileSystemUtils.fileExists(path.join(managedDir, 'README.md'))).toBe(true);
+    });
+
     it('should refresh both Devin Desktop surfaces with the right invocation syntax', async () => {
       // Set up Devin Desktop directory with a skill to indicate it's configured
       const skillsDir = path.join(testDir, '.devin', 'skills');

@@ -9,6 +9,8 @@ export {
   type SkillName,
   COMMAND_IDS,
   type CommandId,
+  MANAGED_COMMANDS,
+  type ManagedCommandDescriptor,
   type ToolSkillStatus,
   type ToolVersionStatus,
   getToolsWithSkillsDir,

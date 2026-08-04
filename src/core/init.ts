@@ -40,6 +40,7 @@ import {
 } from './legacy-cleanup.js';
 import {
   SKILL_NAMES,
+  MANAGED_COMMANDS,
   getToolsWithSkillsDir,
   getToolSkillStatus,
   getToolStates,
@@ -1043,8 +1044,8 @@ export class InitCommand {
     const adapter = CommandAdapterRegistry.get(toolId);
     if (!adapter) return 0;
 
-    for (const workflow of ALL_WORKFLOWS) {
-      const cmdPath = adapter.getFilePath(workflow);
+    for (const descriptor of MANAGED_COMMANDS) {
+      const cmdPath = adapter.getFilePath(descriptor);
       const fullPath = path.isAbsolute(cmdPath) ? cmdPath : path.join(projectPath, cmdPath);
 
       try {

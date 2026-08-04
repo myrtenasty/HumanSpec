@@ -130,6 +130,51 @@ Finally /opsx-apply to implement`;
       expect(transformCommandInvocations(input, NAMESPACED_SLASH)).toBe(input);
     });
   });
+
+  describe('explicit namespace', () => {
+    const transformHumanspec = (text: string): string =>
+      transformCommandInvocations(text, FLAT_SLASH, 'humanspec');
+
+    it('rewrites references belonging to the declared family', () => {
+      expect(transformHumanspec('/humanspec:propose')).toBe('/humanspec-propose');
+      expect(transformHumanspec('Start with /humanspec:propose, then /humanspec:apply.')).toBe(
+        'Start with /humanspec-propose, then /humanspec-apply.'
+      );
+    });
+
+    it('leaves references to a different namespace unchanged', () => {
+      // A humanspec body may still point at OpenSpec commands; they belong to
+      // another family and stay as written unless that descriptor is supplied.
+      expect(transformHumanspec('Use /opsx:apply for OpenSpec work.')).toBe(
+        'Use /opsx:apply for OpenSpec work.'
+      );
+      expect(transformHumanspec('/opsx:apply and /humanspec:propose')).toBe(
+        '/opsx:apply and /humanspec-propose'
+      );
+    });
+
+    it('applies the namespace to every invocation shape', () => {
+      expect(transformCommandInvocations('/humanspec:propose', FLAT_AT, 'humanspec')).toBe(
+        '@humanspec-propose'
+      );
+      expect(transformCommandInvocations('/humanspec:propose', NAMESPACED_SLASH, 'humanspec')).toBe(
+        '/humanspec:propose'
+      );
+    });
+
+    it('leaves unknown ids alone under an explicit namespace too', () => {
+      expect(transformHumanspec('/humanspec:propose and /humanspec:bogus')).toBe(
+        '/humanspec-propose and /humanspec:bogus'
+      );
+    });
+
+    it('defaults to the opsx family when no namespace is supplied', () => {
+      expect(transformCommandInvocations('/humanspec:propose', FLAT_SLASH)).toBe(
+        '/humanspec:propose'
+      );
+      expect(transformCommandInvocations('/opsx:propose', FLAT_SLASH)).toBe('/opsx-propose');
+    });
+  });
 });
 
 describe('transformToSkillReferences', () => {
@@ -307,5 +352,24 @@ describe('getTransformerForTool', () => {
       expect(transformer?.('/opsx:propose')).toBe('$openspec-propose');
       expect(transformer?.('Run /opsx:apply next')).toBe('Run $openspec-apply-change next');
     }
+  });
+
+  it('passes an explicit namespace through to the invocation formatter', () => {
+    // Generated skills and onboarding hints reuse the same namespace-aware
+    // formatter as generateCommand, so a tool never advertises a spelling
+    // different from the file it registers.
+    const transformer = getTransformerForTool(
+      'cursor',
+      'both',
+      'adapter-backed',
+      FLAT_SLASH,
+      'humanspec'
+    );
+    expect(transformer?.('/humanspec:propose')).toBe('/humanspec-propose');
+    expect(transformer?.('/opsx:apply')).toBe('/opsx:apply');
+    // Defaults to the opsx family for callers that do not declare one.
+    const defaulted = getTransformerForTool('cursor', 'both', 'adapter-backed', FLAT_SLASH);
+    expect(defaulted?.('/opsx:apply')).toBe('/opsx-apply');
+    expect(defaulted?.('/humanspec:propose')).toBe('/humanspec:propose');
   });
 });

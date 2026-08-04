@@ -6,6 +6,7 @@
 
 import path from 'path';
 import type { CommandContent, ToolCommandAdapter } from '../types.js';
+import type { CommandIdentity } from '../identity.js';
 
 /**
  * Control characters (C0 except tab/newline/carriage return, plus DEL) are
@@ -47,14 +48,14 @@ function escapeTomlMultilineBasicString(value: string): string {
 
 /**
  * Gemini adapter for command generation.
- * File path: .gemini/commands/opsx/<id>.toml
+ * File path: .gemini/commands/<namespace>/<id>.toml
  * Format: TOML with description and prompt fields
  */
 export const geminiAdapter: ToolCommandAdapter = {
   toolId: 'gemini',
 
-  getFilePath(commandId: string): string {
-    return path.join('.gemini', 'commands', 'opsx', `${commandId}.toml`);
+  getFilePath(identity: CommandIdentity): string {
+    return path.join('.gemini', 'commands', identity.namespace, `${identity.id}.toml`);
   },
 
   formatFile(content: CommandContent): string {

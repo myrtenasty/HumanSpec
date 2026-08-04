@@ -14,7 +14,7 @@ import {
   shouldGenerateCommandsForTool,
 } from './command-surface.js';
 import { WORKFLOW_TO_SKILL_DIR } from './profile-sync-drift.js';
-import { COMMAND_IDS } from './shared/tool-detection.js';
+import { MANAGED_COMMANDS } from './shared/tool-detection.js';
 import { ALL_WORKFLOWS } from './profiles.js';
 import { getSkillReferenceTransformer, getTransformerForTool } from '../utils/command-references.js';
 import path from 'path';
@@ -245,8 +245,8 @@ function migrateCommandFiles(
   let moved = 0;
   let kept = 0;
 
-  for (const commandId of COMMAND_IDS) {
-    const currentPath = adapter.getFilePath(commandId);
+  for (const descriptor of MANAGED_COMMANDS) {
+    const currentPath = adapter.getFilePath(descriptor);
     const legacyPath = legacyCommandPath(currentPath, tool.skillsDir, legacyRoot);
     if (!legacyPath) continue;
 
@@ -392,13 +392,13 @@ function scanInstalledWorkflowArtifacts(
     const adapter = CommandAdapterRegistry.get(tool.value);
     if (!adapter) continue;
 
-    for (const workflowId of ALL_WORKFLOWS) {
-      const commandPath = adapter.getFilePath(workflowId);
+    for (const descriptor of MANAGED_COMMANDS) {
+      const commandPath = adapter.getFilePath(descriptor);
       const fullPath = path.isAbsolute(commandPath)
         ? commandPath
         : path.join(projectPath, commandPath);
       if (fs.existsSync(fullPath)) {
-        installed.add(workflowId);
+        installed.add(descriptor.id);
         hasCommands = true;
       }
     }

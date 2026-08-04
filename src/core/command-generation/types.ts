@@ -12,6 +12,12 @@
 export interface CommandContent {
   /** Command identifier (e.g., 'explore', 'apply', 'new') */
   id: string;
+  /**
+   * Optional command-family identifier (e.g., 'opsx' or 'humanspec').
+   * Omitted values resolve to DEFAULT_COMMAND_NAMESPACE ('opsx') before
+   * path or invocation generation.
+   */
+  namespace?: string;
   /** Human-readable name (e.g., 'OpenSpec Explore') */
   name: string;
   /** Brief description of command purpose */
@@ -24,6 +30,8 @@ export interface CommandContent {
   body: string;
 }
 
+import type { CommandIdentity } from './identity.js';
+
 /**
  * Per-tool formatting strategy.
  * Each AI tool implements this interface to handle its specific file path
@@ -34,11 +42,11 @@ export interface ToolCommandAdapter {
   toolId: string;
   /**
    * Returns the file path for a command.
-   * @param commandId - The command identifier (e.g., 'explore')
+   * @param identity - The resolved command identity (namespace + id)
    * @returns Path from project root (e.g., '.claude/commands/opsx/explore.md').
    *          May be absolute for tools with global-scoped command files.
    */
-  getFilePath(commandId: string): string;
+  getFilePath(identity: CommandIdentity): string;
   /**
    * What the user types before the command name, when it is not the default
    * `/`. Amazon Q loads these files into its prompt library, which is invoked

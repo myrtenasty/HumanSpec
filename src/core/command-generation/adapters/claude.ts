@@ -6,19 +6,20 @@
 
 import path from 'path';
 import type { CommandContent, ToolCommandAdapter } from '../types.js';
+import type { CommandIdentity } from '../identity.js';
 import { escapeYamlValue, formatTagsArray } from '../yaml.js';
 import { OPENSPEC_CLI_ALLOWED_TOOLS } from '../../shared/allowed-tools.js';
 
 /**
  * Claude Code adapter for command generation.
- * File path: .claude/commands/opsx/<id>.md
+ * File path: .claude/commands/<namespace>/<id>.md
  * Frontmatter: name, description, allowed-tools, category, tags
  */
 export const claudeAdapter: ToolCommandAdapter = {
   toolId: 'claude',
 
-  getFilePath(commandId: string): string {
-    return path.join('.claude', 'commands', 'opsx', `${commandId}.md`);
+  getFilePath(identity: CommandIdentity): string {
+    return path.join('.claude', 'commands', identity.namespace, `${identity.id}.md`);
   },
 
   formatFile(content: CommandContent): string {

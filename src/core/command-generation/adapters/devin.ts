@@ -8,22 +8,23 @@
 
 import path from 'path';
 import type { CommandContent, ToolCommandAdapter } from '../types.js';
+import type { CommandIdentity } from '../identity.js';
 import { escapeYamlValue, formatTagsArray } from '../yaml.js';
 
 /**
  * Devin Desktop adapter for command generation.
- * File path: .devin/workflows/opsx-<id>.md
+ * File path: .devin/workflows/<namespace>-<id>.md
  * Frontmatter: name, description, category, tags
  *
- * The `opsx-` filename prefix makes this a flat invocation, so the generator
- * rewrites the body's `/opsx:*` references to the `/opsx-*` form Devin
- * registers — see invocation.ts.
+ * The `<namespace>-` filename prefix makes this a flat invocation, so the
+ * generator rewrites the body's `/opsx:*` references to the `/opsx-*` form
+ * Devin registers — see invocation.ts.
  */
 export const devinAdapter: ToolCommandAdapter = {
   toolId: 'devin',
 
-  getFilePath(commandId: string): string {
-    return path.join('.devin', 'workflows', `opsx-${commandId}.md`);
+  getFilePath(identity: CommandIdentity): string {
+    return path.join('.devin', 'workflows', `${identity.namespace}-${identity.id}.md`);
   },
 
   formatFile(content: CommandContent): string {

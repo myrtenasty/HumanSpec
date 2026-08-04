@@ -6,18 +6,19 @@
 
 import path from 'path';
 import type { CommandContent, ToolCommandAdapter } from '../types.js';
+import type { CommandIdentity } from '../identity.js';
 import { escapeYamlValue } from '../yaml.js';
 
 /**
  * OpenCode adapter for command generation.
- * File path: .opencode/commands/opsx-<id>.md
+ * File path: .opencode/commands/<namespace>-<id>.md
  * Frontmatter: description
  */
 export const opencodeAdapter: ToolCommandAdapter = {
   toolId: 'opencode',
 
-  getFilePath(commandId: string): string {
-    return path.join('.opencode', 'commands', `opsx-${commandId}.md`);
+  getFilePath(identity: CommandIdentity): string {
+    return path.join('.opencode', 'commands', `${identity.namespace}-${identity.id}.md`);
   },
 
   formatFile(content: CommandContent): string {

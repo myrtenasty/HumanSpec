@@ -6,18 +6,19 @@
 
 import path from 'path';
 import type { CommandContent, ToolCommandAdapter } from '../types.js';
+import type { CommandIdentity } from '../identity.js';
 import { escapeYamlValue } from '../yaml.js';
 
 /**
  * Trae adapter for command generation.
- * File path: .trae/commands/opsx-<id>.md
+ * File path: .trae/commands/<namespace>-<id>.md
  * Frontmatter: name, description
  */
 export const traeAdapter: ToolCommandAdapter = {
   toolId: 'trae',
 
-  getFilePath(commandId: string): string {
-    return path.join('.trae', 'commands', `opsx-${commandId}.md`);
+  getFilePath(identity: CommandIdentity): string {
+    return path.join('.trae', 'commands', `${identity.namespace}-${identity.id}.md`);
   },
 
   formatFile(content: CommandContent): string {

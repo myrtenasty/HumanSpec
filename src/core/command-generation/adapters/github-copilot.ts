@@ -6,18 +6,19 @@
 
 import path from 'path';
 import type { CommandContent, ToolCommandAdapter } from '../types.js';
+import type { CommandIdentity } from '../identity.js';
 import { escapeYamlValue } from '../yaml.js';
 
 /**
  * GitHub Copilot adapter for command generation.
- * File path: .github/prompts/opsx-<id>.prompt.md
+ * File path: .github/prompts/<namespace>-<id>.prompt.md
  * Frontmatter: description
  */
 export const githubCopilotAdapter: ToolCommandAdapter = {
   toolId: 'github-copilot',
 
-  getFilePath(commandId: string): string {
-    return path.join('.github', 'prompts', `opsx-${commandId}.prompt.md`);
+  getFilePath(identity: CommandIdentity): string {
+    return path.join('.github', 'prompts', `${identity.namespace}-${identity.id}.prompt.md`);
   },
 
   formatFile(content: CommandContent): string {

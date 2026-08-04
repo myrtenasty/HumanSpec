@@ -6,11 +6,12 @@
 
 import path from 'path';
 import type { CommandContent, ToolCommandAdapter } from '../types.js';
+import type { CommandIdentity } from '../identity.js';
 import { escapeYamlValue } from '../yaml.js';
 
 /**
  * Amazon Q adapter for command generation.
- * File path: .amazonq/prompts/opsx-<id>.md
+ * File path: .amazonq/prompts/<namespace>-<id>.md
  * Frontmatter: description
  *
  * Amazon Q surfaces these files as its prompt library rather than as slash
@@ -20,8 +21,8 @@ import { escapeYamlValue } from '../yaml.js';
 export const amazonQAdapter: ToolCommandAdapter = {
   toolId: 'amazon-q',
 
-  getFilePath(commandId: string): string {
-    return path.join('.amazonq', 'prompts', `opsx-${commandId}.md`);
+  getFilePath(identity: CommandIdentity): string {
+    return path.join('.amazonq', 'prompts', `${identity.namespace}-${identity.id}.md`);
   },
 
   invocationPrefix: '@',

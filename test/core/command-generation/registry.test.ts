@@ -114,9 +114,9 @@ describe('command-generation/registry', () => {
       const cursorAdapter = CommandAdapterRegistry.get('cursor');
       const devinAdapter = CommandAdapterRegistry.get('devin');
 
-      expect(claudeAdapter?.getFilePath('test')).toContain('.claude');
-      expect(cursorAdapter?.getFilePath('test')).toContain('.cursor');
-      expect(devinAdapter?.getFilePath('test')).toContain('.devin');
+      expect(claudeAdapter?.getFilePath({ namespace: 'opsx', id: 'test' })).toContain('.claude');
+      expect(cursorAdapter?.getFilePath({ namespace: 'opsx', id: 'test' })).toContain('.cursor');
+      expect(devinAdapter?.getFilePath({ namespace: 'opsx', id: 'test' })).toContain('.devin');
     });
 
     it('registered adapters should have working formatFile', () => {

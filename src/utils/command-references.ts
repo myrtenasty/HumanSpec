@@ -15,34 +15,45 @@ import {
   formatCommandInvocation,
   needsInvocationRewrite,
 } from '../core/command-generation/invocation.js';
+import { DEFAULT_COMMAND_NAMESPACE } from '../core/command-generation/identity.js';
 
 /**
- * Rewrites the canonical `/opsx:<command>` references that command bodies and
- * skill templates are authored with into the form one tool actually registers
- * — `/opsx-<command>` for tools that name the command by filename,
- * `@opsx-<command>` for Amazon Q's prompt library.
+ * Rewrites the canonical `/<namespace>:<command>` references that command
+ * bodies and skill templates are authored with into the form one tool
+ * actually registers — `/<namespace>-<command>` for tools that name the
+ * command by filename, `@<namespace>-<command>` for Amazon Q's prompt
+ * library. Only references belonging to the given namespace family are
+ * rewritten; references to other namespaces are left unchanged unless the
+ * caller supplies their own descriptor.
  *
  * Only known command ids are rewritten, matching how
  * `transformToSkillReferences` leaves unrecognized references alone, so a
- * mistyped or invented `/opsx:<something>` is left as written rather than
- * silently reshaped into a command that does not exist either.
+ * mistyped or invented `/<namespace>:<something>` is left as written rather
+ * than silently reshaped into a command that does not exist either.
  *
  * @param text - The text containing command references
  * @param invocation - The tool's invocation, from resolveCommandInvocation()
+ * @param namespace - The command family whose references to rewrite,
+ *        defaulting to the OpenSpec default
  * @returns Text with command references spelled the tool's way
  *
  * @example
  * transformCommandInvocations('/opsx:new', { style: 'flat', prefix: '/' }) // '/opsx-new'
  * transformCommandInvocations('/opsx:new', { style: 'flat', prefix: '@' }) // '@opsx-new'
+ * transformCommandInvocations('/humanspec:propose', { style: 'flat', prefix: '/' }, 'humanspec') // '/humanspec-propose'
  */
 export function transformCommandInvocations(
   text: string,
-  invocation: CommandInvocation
+  invocation: CommandInvocation,
+  namespace: string = DEFAULT_COMMAND_NAMESPACE
 ): string {
-  return text.replace(/\/opsx:([a-z-]+)/g, (match, commandId: string) =>
-    commandId in COMMAND_TO_SKILL_NAME
-      ? formatCommandInvocation(invocation, commandId)
-      : match
+  const escapedNamespace = namespace.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return text.replace(
+    new RegExp(`\\/${escapedNamespace}:([a-z-]+)`, 'g'),
+    (match, commandId: string) =>
+      commandId in COMMAND_TO_SKILL_NAME
+        ? formatCommandInvocation(invocation, commandId, namespace)
+        : match
   );
 }
 
@@ -154,6 +165,11 @@ export function getSkillReferenceTransformer(toolId: string): (text: string) => 
  *        resolveCommandInvocation(); undefined for tools with no command
  *        adapter. Required rather than optional so a caller that forgets it
  *        fails to compile instead of silently getting the canonical form.
+ * @param namespace - The command family whose references the transformer
+ *        rewrites, defaulting to the OpenSpec default; generated skills and
+ *        onboarding hints reuse the same namespace-aware invocation
+ *        formatter as generateCommand so a tool never advertises a spelling
+ *        different from the file it registers.
  * @returns The transformer to pass to generateSkillContent, or undefined when
  *          the tool already answers to the canonical `/opsx:<id>`
  */
@@ -161,7 +177,8 @@ export function getTransformerForTool(
   toolId: string,
   delivery: 'both' | 'skills' | 'commands',
   capability: CommandSurfaceCapability,
-  invocation: CommandInvocation | undefined
+  invocation: CommandInvocation | undefined,
+  namespace: string = DEFAULT_COMMAND_NAMESPACE
 ): ((text: string) => string) | undefined {
   if (delivery === 'skills' || capability !== 'adapter-backed') {
     return getSkillReferenceTransformer(toolId);
@@ -170,7 +187,7 @@ export function getTransformerForTool(
     return getSkillReferenceTransformer(toolId);
   }
   if (invocation !== undefined && needsInvocationRewrite(invocation)) {
-    return (text: string) => transformCommandInvocations(text, invocation);
+    return (text: string) => transformCommandInvocations(text, invocation, namespace);
   }
   return undefined;
 }

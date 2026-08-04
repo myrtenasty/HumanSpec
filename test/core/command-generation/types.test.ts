@@ -14,11 +14,25 @@ describe('command-generation/types', () => {
       };
 
       expect(content.id).toBe('explore');
+      expect(content.namespace).toBeUndefined();
       expect(content.name).toBe('OpenSpec Explore');
       expect(content.description).toBe('Enter explore mode for thinking');
       expect(content.category).toBe('Workflow');
       expect(content.tags).toEqual(['workflow', 'explore']);
       expect(content.body).toBe('This is the command body content.');
+    });
+
+    it('should allow an explicit namespace', () => {
+      const content: CommandContent = {
+        id: 'propose',
+        namespace: 'humanspec',
+        name: 'HumanSpec Propose',
+        description: 'Propose a change',
+        category: 'HumanSpec',
+        tags: [],
+        body: 'Body',
+      };
+      expect(content.namespace).toBe('humanspec');
     });
 
     it('should allow empty tags array', () => {
@@ -39,8 +53,8 @@ describe('command-generation/types', () => {
     it('should implement adapter with getFilePath and formatFile', () => {
       const mockAdapter: ToolCommandAdapter = {
         toolId: 'test-tool',
-        getFilePath(commandId: string): string {
-          return `.test/${commandId}.md`;
+        getFilePath(identity: { namespace: string; id: string }): string {
+          return `.test/${identity.namespace}/${identity.id}.md`;
         },
         formatFile(content: CommandContent): string {
           return `---\nname: ${content.name}\n---\n\n${content.body}\n`;
@@ -48,7 +62,7 @@ describe('command-generation/types', () => {
       };
 
       expect(mockAdapter.toolId).toBe('test-tool');
-      expect(mockAdapter.getFilePath('explore')).toBe('.test/explore.md');
+      expect(mockAdapter.getFilePath({ namespace: 'opsx', id: 'explore' })).toBe('.test/opsx/explore.md');
 
       const content: CommandContent = {
         id: 'test',

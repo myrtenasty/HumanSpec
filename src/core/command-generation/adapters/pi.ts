@@ -7,6 +7,7 @@
 
 import path from 'path';
 import type { CommandContent, ToolCommandAdapter } from '../types.js';
+import type { CommandIdentity } from '../identity.js';
 import { escapeYamlValue } from '../yaml.js';
 
 const PI_INPUT_HEADING = /^\*\*Input\*\*:[^\n]*$/m;
@@ -24,7 +25,7 @@ function injectPiArgs(body: string): string {
 
 /**
  * Pi adapter for prompt template generation.
- * File path: .pi/prompts/opsx-<id>.md
+ * File path: .pi/prompts/<namespace>-<id>.md
  * Frontmatter: description
  *
  * Pi uses the filename (minus .md) as the slash command name, so
@@ -34,8 +35,8 @@ function injectPiArgs(body: string): string {
 export const piAdapter: ToolCommandAdapter = {
   toolId: 'pi',
 
-  getFilePath(commandId: string): string {
-    return path.join('.pi', 'prompts', `opsx-${commandId}.md`);
+  getFilePath(identity: CommandIdentity): string {
+    return path.join('.pi', 'prompts', `${identity.namespace}-${identity.id}.md`);
   },
 
   formatFile(content: CommandContent): string {

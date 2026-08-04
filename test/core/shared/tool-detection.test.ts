@@ -472,6 +472,25 @@ Content here
       expect(tools).toContain('cursor');
       expect(tools).toHaveLength(2);
     });
+
+    it('should not count a command file in an unregistered namespace as configured', async () => {
+      // A humanspec-family command file is not enumerated by the managed
+      // descriptor list, so detection must ignore it: only registered
+      // namespace/ID paths mark a tool as configured.
+      const humanspecDir = path.join(testDir, '.claude', 'commands', 'humanspec');
+      await fs.mkdir(humanspecDir, { recursive: true });
+      await fs.writeFile(path.join(humanspecDir, 'propose.md'), '# humanspec propose\n');
+
+      expect(getConfiguredTools(testDir)).toEqual([]);
+    });
+
+    it('should count a command file at a registered namespace/ID path as configured', async () => {
+      const opsxDir = path.join(testDir, '.claude', 'commands', 'opsx');
+      await fs.mkdir(opsxDir, { recursive: true });
+      await fs.writeFile(path.join(opsxDir, 'explore.md'), '# explore\n');
+
+      expect(getConfiguredTools(testDir)).toEqual(['claude']);
+    });
   });
 
   describe('getAllToolVersionStatus', () => {

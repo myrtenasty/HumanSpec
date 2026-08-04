@@ -585,6 +585,31 @@ describe('InitCommand', () => {
       const content = await fs.readFile(cmdFile, 'utf-8');
       expect(content).toMatch(/^---\n/);
     });
+
+    it('should preserve unregistered namespaces and user files when skills-only init cleans commands', async () => {
+      // Skills-only delivery reconciles existing command files away, but only
+      // the registered opsx namespace/ID paths: a humanspec-family command and
+      // user files beside the managed directory must survive.
+      saveGlobalConfig({ featureFlags: {}, profile: 'core', delivery: 'skills' });
+
+      const commandsDir = path.join(testDir, '.claude', 'commands');
+      const managedDir = path.join(commandsDir, 'opsx');
+      await fs.mkdir(managedDir, { recursive: true });
+      await fs.writeFile(path.join(managedDir, 'explore.md'), '# managed');
+      await fs.writeFile(path.join(managedDir, 'propose.md'), '# managed');
+      await fs.mkdir(path.join(commandsDir, 'humanspec'), { recursive: true });
+      await fs.writeFile(path.join(commandsDir, 'humanspec', 'propose.md'), '# humanspec');
+      await fs.writeFile(path.join(managedDir, 'user-apply.md'), '# user');
+      await fs.writeFile(path.join(managedDir, 'README.md'), '# readme');
+
+      await new InitCommand({ tools: 'claude', force: true }).execute(testDir);
+
+      expect(await fileExists(path.join(managedDir, 'explore.md'))).toBe(false);
+      expect(await fileExists(path.join(managedDir, 'propose.md'))).toBe(false);
+      expect(await fileExists(path.join(commandsDir, 'humanspec', 'propose.md'))).toBe(true);
+      expect(await fileExists(path.join(managedDir, 'user-apply.md'))).toBe(true);
+      expect(await fileExists(path.join(managedDir, 'README.md'))).toBe(true);
+    });
   });
 
   describe('error handling', () => {

@@ -7,17 +7,18 @@
 
 import path from 'path';
 import type { CommandContent, ToolCommandAdapter } from '../types.js';
+import type { CommandIdentity } from '../identity.js';
 
 /**
  * Zoo Code adapter for command generation.
- * File path: .roo/commands/opsx-<id>.md
+ * File path: .roo/commands/<namespace>-<id>.md
  * Format: Markdown header with description
  */
 export const roocodeAdapter: ToolCommandAdapter = {
   toolId: 'roocode',
 
-  getFilePath(commandId: string): string {
-    return path.join('.roo', 'commands', `opsx-${commandId}.md`);
+  getFilePath(identity: CommandIdentity): string {
+    return path.join('.roo', 'commands', `${identity.namespace}-${identity.id}.md`);
   },
 
   formatFile(content: CommandContent): string {

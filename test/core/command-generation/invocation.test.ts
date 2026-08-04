@@ -6,6 +6,7 @@ import {
   getInvocationStyleForPath,
   needsInvocationRewrite,
 } from '../../../src/core/command-generation/invocation.js';
+import { DEFAULT_COMMAND_NAMESPACE } from '../../../src/core/command-generation/identity.js';
 import { CommandAdapterRegistry } from '../../../src/core/command-generation/registry.js';
 import { resolveCommandInvocation } from '../../../src/core/command-surface.js';
 import { generateCommand } from '../../../src/core/command-generation/generator.js';
@@ -13,9 +14,9 @@ import type { CommandContent } from '../../../src/core/command-generation/types.
 import { ALL_WORKFLOWS } from '../../../src/core/profiles.js';
 
 /**
- * Tools whose command files live in an `opsx/` directory, so the tool
+ * Tools whose command files live in a `<namespace>/` directory, so the tool
  * namespaces the command and registers `/opsx:<id>`. Every other registered
- * adapter writes `opsx-<id>` as the filename and therefore registers
+ * adapter writes `<namespace>-<id>` as the filename and therefore registers
  * `/opsx-<id>`.
  *
  * This list is a tripwire, not the source of truth: production classifies a
@@ -49,14 +50,26 @@ const sampleContent: CommandContent = {
 
 describe('command-generation/invocation', () => {
   describe('getInvocationStyleForPath', () => {
-    it('classifies an opsx- prefixed filename as flat', () => {
+    it('classifies a namespace- prefixed filename as flat', () => {
       expect(getInvocationStyleForPath(path.join('.cursor', 'commands', 'opsx-apply.md'))).toBe('flat');
       expect(getInvocationStyleForPath(path.join('.github', 'prompts', 'opsx-apply.prompt.md'))).toBe('flat');
     });
 
-    it('classifies a file inside an opsx/ directory as namespaced', () => {
+    it('classifies a file inside a namespace/ directory as namespaced', () => {
       expect(getInvocationStyleForPath(path.join('.claude', 'commands', 'opsx', 'apply.md'))).toBe('namespaced');
       expect(getInvocationStyleForPath(path.join('.gemini', 'commands', 'opsx', 'apply.toml'))).toBe('namespaced');
+    });
+
+    it('classifies a non-default namespace from its own prefix, not from opsx', () => {
+      // The classifier must examine the actual path for the resolved
+      // identity: humanspec-propose.md is flat, .claude/commands/humanspec/
+      // is namespaced — even though neither basename starts with `opsx-`.
+      expect(
+        getInvocationStyleForPath(path.join('.cursor', 'commands', 'humanspec-propose.md'), 'humanspec')
+      ).toBe('flat');
+      expect(
+        getInvocationStyleForPath(path.join('.claude', 'commands', 'humanspec', 'propose.md'), 'humanspec')
+      ).toBe('namespaced');
     });
   });
 
@@ -65,7 +78,7 @@ describe('command-generation/invocation', () => {
       for (const adapter of CommandAdapterRegistry.getAll()) {
         expect(
           getInvocationForAdapter(adapter),
-          `${adapter.toolId} writes ${adapter.getFilePath('apply')}`
+          `${adapter.toolId} writes ${adapter.getFilePath({ namespace: 'opsx', id: 'apply' })}`
         ).toEqual(expectedInvocation(adapter.toolId));
       }
     });
@@ -85,9 +98,65 @@ describe('command-generation/invocation', () => {
         const expected = NAMESPACED_TOOLS.includes(adapter.toolId) ? 'namespaced' : 'flat';
         for (const id of ALL_WORKFLOWS) {
           expect(
-            getInvocationStyleForPath(adapter.getFilePath(id)),
+            getInvocationStyleForPath(
+              adapter.getFilePath({ namespace: DEFAULT_COMMAND_NAMESPACE, id }),
+              DEFAULT_COMMAND_NAMESPACE
+            ),
             `${adapter.toolId} ${id}`
           ).toBe(expected);
+        }
+      }
+    });
+
+    it('keeps every adapter namespaced or flat for a non-default namespace too', () => {
+      // The naming rule is an adapter property: a directory-namespaced
+      // adapter stays namespaced and a flat adapter stays flat regardless of
+      // the command family.
+      for (const adapter of CommandAdapterRegistry.getAll()) {
+        const expected = NAMESPACED_TOOLS.includes(adapter.toolId) ? 'namespaced' : 'flat';
+        for (const id of ['explore', 'propose', 'bulk-archive']) {
+          expect(
+            getInvocationStyleForPath(
+              adapter.getFilePath({ namespace: 'humanspec', id }),
+              'humanspec'
+            ),
+            `${adapter.toolId} ${id}`
+          ).toBe(expected);
+        }
+      }
+    });
+
+    it('preserves the existing opsx path for every adapter', () => {
+      // Parity: an omitted namespace must keep every existing OpenSpec path
+      // byte-for-byte identical to what the adapter generated before
+      // namespace support.
+      for (const adapter of CommandAdapterRegistry.getAll()) {
+        for (const id of ALL_WORKFLOWS) {
+          const filePath = adapter.getFilePath({ namespace: 'opsx', id });
+          const segments = filePath.split(path.sep);
+          const last = segments[segments.length - 1];
+          if (NAMESPACED_TOOLS.includes(adapter.toolId)) {
+            expect(segments[segments.length - 2], `${adapter.toolId} ${id}`).toBe('opsx');
+            expect(last, `${adapter.toolId} ${id}`).toBe(`${id}.${extensionOf(adapter)}`);
+          } else {
+            expect(last, `${adapter.toolId} ${id}`).toBe(`opsx-${id}.${extensionOf(adapter)}`);
+          }
+        }
+      }
+    });
+
+    it('projects the expected humanspec path for every adapter', () => {
+      for (const adapter of CommandAdapterRegistry.getAll()) {
+        for (const id of ALL_WORKFLOWS) {
+          const filePath = adapter.getFilePath({ namespace: 'humanspec', id });
+          const segments = filePath.split(path.sep);
+          const last = segments[segments.length - 1];
+          if (NAMESPACED_TOOLS.includes(adapter.toolId)) {
+            expect(segments[segments.length - 2], `${adapter.toolId} ${id}`).toBe('humanspec');
+            expect(last, `${adapter.toolId} ${id}`).toBe(`${id}.${extensionOf(adapter)}`);
+          } else {
+            expect(last, `${adapter.toolId} ${id}`).toBe(`humanspec-${id}.${extensionOf(adapter)}`);
+          }
         }
       }
     });
@@ -121,6 +190,21 @@ describe('command-generation/invocation', () => {
       expect(formatCommandInvocation({ style: 'flat', prefix: '/' }, 'apply')).toBe('/opsx-apply');
       expect(formatCommandInvocation({ style: 'flat', prefix: '@' }, 'bulk-archive')).toBe(
         '@opsx-bulk-archive'
+      );
+    });
+
+    it('derives <prefix><namespace><separator><id> from the identity', () => {
+      expect(formatCommandInvocation({ style: 'namespaced', prefix: '/' }, 'propose', 'humanspec')).toBe(
+        '/humanspec:propose'
+      );
+      expect(formatCommandInvocation({ style: 'flat', prefix: '/' }, 'propose', 'humanspec')).toBe(
+        '/humanspec-propose'
+      );
+      expect(formatCommandInvocation({ style: 'flat', prefix: '@' }, 'propose', 'humanspec')).toBe(
+        '@humanspec-propose'
+      );
+      expect(formatCommandInvocation({ style: 'namespaced', prefix: '/' }, 'apply', 'acme-tools')).toBe(
+        '/acme-tools:apply'
       );
     });
 
@@ -178,5 +262,99 @@ describe('command-generation/invocation', () => {
         expect(adapter.formatFile(sampleContent), toolId).toContain('/opsx:archive');
       }
     });
+
+    it('projects /humanspec:propose for a namespaced adapter', () => {
+      const adapter = CommandAdapterRegistry.get('claude')!;
+      const { path: filePath, fileContent } = generateCommand(
+        {
+          ...sampleContent,
+          id: 'propose',
+          namespace: 'humanspec',
+          body: 'Start with /humanspec:propose, then /humanspec:apply.',
+        },
+        adapter
+      );
+      expect(filePath).toBe(path.join('.claude', 'commands', 'humanspec', 'propose.md'));
+      // Namespaced paths keep the colon form for their own family.
+      expect(fileContent).toContain('/humanspec:propose');
+      expect(fileContent).toContain('/humanspec:apply');
+    });
+
+    it('projects /humanspec-propose for a flat adapter', () => {
+      const adapter = CommandAdapterRegistry.get('cursor')!;
+      const { path: filePath, fileContent } = generateCommand(
+        {
+          ...sampleContent,
+          id: 'propose',
+          namespace: 'humanspec',
+          body: 'Start with /humanspec:propose, then /humanspec:apply.',
+        },
+        adapter
+      );
+      expect(filePath).toBe(path.join('.cursor', 'commands', 'humanspec-propose.md'));
+      expect(fileContent).toContain('/humanspec-propose');
+      expect(fileContent).toContain('/humanspec-apply');
+      expect(fileContent).not.toContain('/humanspec:');
+    });
+
+    it('projects @humanspec-propose for Amazon Q', () => {
+      const adapter = CommandAdapterRegistry.get('amazon-q')!;
+      const { path: filePath, fileContent } = generateCommand(
+        {
+          ...sampleContent,
+          id: 'propose',
+          namespace: 'humanspec',
+          body: 'Start with /humanspec:propose.',
+        },
+        adapter
+      );
+      expect(filePath).toBe(path.join('.amazonq', 'prompts', 'humanspec-propose.md'));
+      expect(fileContent).toContain('@humanspec-propose');
+      expect(fileContent).not.toContain('/humanspec');
+    });
+
+    it('leaves references to a different namespace unchanged', () => {
+      const adapter = CommandAdapterRegistry.get('cursor')!;
+      const { fileContent } = generateCommand(
+        {
+          ...sampleContent,
+          id: 'propose',
+          namespace: 'humanspec',
+          body: 'Use /opsx:apply for OpenSpec work and /humanspec:propose for a proposal.',
+        },
+        adapter
+      );
+      // The humanspec family is rewritten to the flat form; the opsx
+      // reference belongs to a different family and stays as written.
+      expect(fileContent).toContain('/opsx:apply');
+      expect(fileContent).toContain('/humanspec-propose');
+    });
+
+    it('keeps the flat frontmatter name in step with the registered filename', () => {
+      const adapter = CommandAdapterRegistry.get('cursor')!;
+      const { path: filePath, fileContent } = generateCommand(
+        {
+          ...sampleContent,
+          id: 'propose',
+          namespace: 'humanspec',
+          body: 'Body.',
+        },
+        adapter
+      );
+      expect(filePath).toContain('humanspec-propose.md');
+      expect(fileContent).toContain('name: "/humanspec-propose"');
+      expect(fileContent).toContain('id: "humanspec-propose"');
+    });
   });
 });
+
+/** Per-adapter file extension, mirroring what the adapter appends after the id. */
+function extensionOf(adapter: { toolId: string }): string {
+  const ext: Record<string, string> = {
+    'gemini': 'toml',
+    'continue': 'prompt',
+    'github-copilot': 'prompt.md',
+    'kiro': 'prompt.md',
+  };
+  return ext[adapter.toolId] ?? 'md';
+}

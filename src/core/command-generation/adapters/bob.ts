@@ -7,11 +7,12 @@
 
 import path from 'path';
 import type { CommandContent, ToolCommandAdapter } from '../types.js';
+import type { CommandIdentity } from '../identity.js';
 import { escapeYamlValue } from '../yaml.js';
 
 /**
  * Bob Shell adapter for command generation.
- * File path: .bob/commands/opsx-<id>.md
+ * File path: .bob/commands/<namespace>-<id>.md
  * Frontmatter: description
  *
  * Bob uses the filename (minus .md) as the slash command name, so
@@ -21,8 +22,8 @@ import { escapeYamlValue } from '../yaml.js';
 export const bobAdapter: ToolCommandAdapter = {
   toolId: 'bob',
 
-  getFilePath(commandId: string): string {
-    return path.join('.bob', 'commands', `opsx-${commandId}.md`);
+  getFilePath(identity: CommandIdentity): string {
+    return path.join('.bob', 'commands', `${identity.namespace}-${identity.id}.md`);
   },
 
   formatFile(content: CommandContent): string {

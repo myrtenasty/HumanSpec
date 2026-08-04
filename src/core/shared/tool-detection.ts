@@ -7,7 +7,7 @@
 import path from 'path';
 import * as fs from 'fs';
 import { AI_TOOLS } from '../config.js';
-import { CommandAdapterRegistry, generateCommands } from '../command-generation/index.js';
+import { CommandAdapterRegistry, generateCommands, DEFAULT_COMMAND_NAMESPACE } from '../command-generation/index.js';
 import { getCommandContents } from './skill-generation.js';
 import { getGlobalConfig } from '../global-config.js';
 import { getProfileWorkflows, ALL_WORKFLOWS } from '../profiles.js';
@@ -51,6 +51,32 @@ export const COMMAND_IDS = [
 ] as const;
 
 export type CommandId = (typeof COMMAND_IDS)[number];
+
+/**
+ * One OpenSpec-managed command: the command family (namespace) plus the
+ * action ID. Detection, drift checks, and cleanup enumerate adapter paths
+ * from this list rather than discovering namespaces through filename globs,
+ * so generated files are only ever deleted or refreshed when their exact
+ * namespace and ID appear here.
+ */
+export interface ManagedCommandDescriptor {
+  /** Command family, e.g. `opsx`; future families such as `humanspec` register here. */
+  namespace: string;
+  /** Command action ID, matching a COMMAND_IDS entry. */
+  id: CommandId;
+}
+
+/**
+ * Every command OpenSpec manages, as explicit namespace/ID descriptors.
+ * This list is the registration source until a workflow manifest owns it
+ * (`unify-template-generation-pipeline`): a later migration can move these
+ * descriptors into the manifest without changing their shape or the paths
+ * they generate.
+ */
+export const MANAGED_COMMANDS: ManagedCommandDescriptor[] = COMMAND_IDS.map((id) => ({
+  namespace: DEFAULT_COMMAND_NAMESPACE,
+  id,
+}));
 
 /**
  * Status of skill configuration for a tool.
@@ -124,8 +150,8 @@ export function toolHasAnyConfiguredCommand(projectPath: string, toolId: string)
   const adapter = CommandAdapterRegistry.get(toolId);
   if (!adapter) return false;
 
-  for (const commandId of COMMAND_IDS) {
-    const cmdPath = adapter.getFilePath(commandId);
+  for (const descriptor of MANAGED_COMMANDS) {
+    const cmdPath = adapter.getFilePath(descriptor);
     const fullPath = path.isAbsolute(cmdPath) ? cmdPath : path.join(projectPath, cmdPath);
     if (fs.existsSync(fullPath)) {
       return true;
@@ -201,9 +227,9 @@ export function areCommandFilesUpToDate(
 
   // Also check no extra command files exist for deselected workflows
   const desiredWorkflowSet = new Set(knownWorkflows);
-  for (const workflow of ALL_WORKFLOWS) {
-    if (desiredWorkflowSet.has(workflow)) continue;
-    const cmdPath = adapter.getFilePath(workflow);
+  for (const descriptor of MANAGED_COMMANDS) {
+    if (desiredWorkflowSet.has(descriptor.id)) continue;
+    const cmdPath = adapter.getFilePath(descriptor);
     const fullPath = path.isAbsolute(cmdPath) ? cmdPath : path.join(projectRoot, cmdPath);
     if (fs.existsSync(fullPath)) {
       return false;

@@ -50,7 +50,7 @@ async function writeManagedCommand(
   if (!adapter) {
     throw new Error(`${toolId} adapter not found`);
   }
-  const commandPath = adapter.getFilePath(workflowId);
+  const commandPath = adapter.getFilePath({ namespace: 'opsx', id: workflowId });
   const fullPath = path.isAbsolute(commandPath)
     ? commandPath
     : path.join(projectPath, commandPath);
