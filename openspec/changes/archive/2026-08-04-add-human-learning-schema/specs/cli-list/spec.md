@@ -23,6 +23,14 @@ The command SHALL scan and analyze either active changes or specs based on the s
 
 The command SHALL accurately aggregate task completion from the files matched by the change schema's `apply.tracks` value.
 
+#### Scenario: Counting tasks in tasks.md
+
+- **WHEN** parsing a `tasks.md` file
+- **THEN** count tasks matching these patterns:
+  - Completed: Lines containing `- [x]`
+  - Incomplete: Lines containing `- [ ]`
+- **AND** calculate total tasks as the sum of completed and incomplete
+
 #### Scenario: Counting tasks in a schema-selected tracked artifact
 
 - **WHEN** a change schema tracks a Markdown artifact such as `learning.md`
@@ -39,6 +47,11 @@ The command SHALL accurately aggregate task completion from the files matched by
 ### Requirement: Error Handling
 
 The command SHALL gracefully handle missing files and directories with appropriate messages.
+
+#### Scenario: Missing tasks.md file
+
+- **WHEN** a change directory has no `tasks.md` file
+- **THEN** display the change with "No tasks" status
 
 #### Scenario: Missing tracked artifact
 

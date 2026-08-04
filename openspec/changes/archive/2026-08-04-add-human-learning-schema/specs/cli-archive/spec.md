@@ -4,6 +4,18 @@
 
 The command SHALL verify task completion in the change schema's tracked artifact before archiving to prevent premature archival.
 
+#### Scenario: Incomplete tasks found
+
+- **WHEN** incomplete tasks are found (marked with `- [ ]`)
+- **THEN** display all incomplete tasks to the user
+- **AND** prompt for confirmation to continue
+- **AND** default to "No" for safety
+
+#### Scenario: All tasks complete
+
+- **WHEN** all tasks are complete OR no tasks.md exists
+- **THEN** proceed with archiving without prompting
+
 #### Scenario: Incomplete tracked tasks found
 
 - **WHEN** one or more files selected by `apply.tracks` contain tasks marked with `- [ ]`

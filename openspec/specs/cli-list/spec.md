@@ -5,15 +5,19 @@
 The `openspec list` command SHALL provide developers with a quick overview of all active changes in the project, showing their names and task completion status.
 ## Requirements
 ### Requirement: Command Execution
+
 The command SHALL scan and analyze either active changes or specs based on the selected mode.
 
 #### Scenario: Scanning for changes (default)
+
 - **WHEN** `openspec list` is executed without flags
 - **THEN** scan the `openspec/changes/` directory for change directories
 - **AND** exclude the `archive/` subdirectory from results
-- **AND** parse each change's `tasks.md` file to count task completion
+- **AND** resolve each change's schema-selected tracked artifact and parse its Markdown checkboxes to count task completion
+- **AND** fall back to the change's top-level `tasks.md` when no tracked artifact can be resolved
 
 #### Scenario: Scanning for specs
+
 - **WHEN** `openspec list --specs` is executed
 - **THEN** scan the `openspec/specs/` directory for capabilities
 - **AND** read each capability's `spec.md`
@@ -21,7 +25,7 @@ The command SHALL scan and analyze either active changes or specs based on the s
 
 ### Requirement: Task Counting
 
-The command SHALL accurately count task completion status using standard markdown checkbox patterns.
+The command SHALL accurately aggregate task completion from the files matched by the change schema's `apply.tracks` value.
 
 #### Scenario: Counting tasks in tasks.md
 
@@ -30,6 +34,19 @@ The command SHALL accurately count task completion status using standard markdow
   - Completed: Lines containing `- [x]`
   - Incomplete: Lines containing `- [ ]`
 - **AND** calculate total tasks as the sum of completed and incomplete
+
+#### Scenario: Counting tasks in a schema-selected tracked artifact
+
+- **WHEN** a change schema tracks a Markdown artifact such as `learning.md`
+- **THEN** count completed tasks from lines containing `- [x]`
+- **AND** count incomplete tasks from lines containing `- [ ]`
+- **AND** calculate total tasks as the sum of completed and incomplete tasks
+
+#### Scenario: Aggregating a tracked glob
+
+- **WHEN** a schema's `apply.tracks` value matches more than one Markdown file inside one change
+- **THEN** aggregate completed and incomplete checkboxes from exactly those matched files
+- **AND** exclude files belonging to sibling or archived changes
 
 ### Requirement: Output Format
 The command SHALL display items in a clear, readable table format with mode-appropriate progress or counts.
@@ -77,10 +94,15 @@ The command SHALL gracefully handle missing files and directories with appropria
 - **WHEN** a change directory has no `tasks.md` file
 - **THEN** display the change with "No tasks" status
 
+#### Scenario: Missing tracked artifact
+
+- **WHEN** a change has no file matching its resolved tracked artifact
+- **THEN** display the change with `No tasks` status
+
 #### Scenario: Missing changes directory
 
-- **WHEN** `openspec/changes/` directory doesn't exist
-- **THEN** display error: "No OpenSpec changes directory found. Run 'openspec init' first."
+- **WHEN** the `openspec/changes/` directory does not exist
+- **THEN** display error: `No OpenSpec changes directory found. Run 'openspec init' first.`
 - **AND** exit with code 1
 
 ### Requirement: Sorting

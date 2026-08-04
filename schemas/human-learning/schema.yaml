@@ -1,0 +1,75 @@
+name: human-learning
+version: 1
+description: Human-owned implementation practice - proposal → specs → learning
+artifacts:
+  - id: proposal
+    generates: proposal.md
+    description: A focused learning-change proposal with one observable outcome
+    template: proposal.md
+    instruction: |
+      Create a concise proposal for one observable outcome and one focused
+      learning exercise.
+
+      Include:
+      - **Why**: The reason this change is worth practicing now.
+      - **Observable Outcome**: One behavior a user or downstream system can observe.
+      - **Scope**: What is included and explicitly excluded.
+      - **Constraints**: Technical, compatibility, time, or learning-session limits.
+      - **Completion Evidence**: The test, demonstration, or review evidence that proves the outcome.
+
+      Keep the change small enough for one configured learning session. Split
+      it before continuing if it needs a long architecture design or contains
+      multiple independent outcomes.
+    requires: []
+
+  - id: specs
+    generates: "specs/**/*.md"
+    description: Testable delta specifications for observable behavior changes
+    template: spec.md
+    instruction: |
+      Create delta specifications only for behavior contracts this change adds,
+      modifies, removes, or renames. Describe observable behavior with normative
+      SHALL or MUST statements and testable WHEN/THEN scenarios.
+
+      Use the standard delta sections: ADDED, MODIFIED, REMOVED, or RENAMED
+      Requirements. Every requirement must include at least one scenario using
+      exactly four hash marks (`#### Scenario:`).
+
+      If the proposal changes no observable behavior contract, set
+      `skip_specs: true` in the change's `.openspec.yaml` and do not create a
+      spec file. This path is valid only for changes such as a pure refactor,
+      tooling update, or documentation change with no behavior delta.
+    requires:
+      - proposal
+
+  - id: learning
+    generates: learning.md
+    description: Learning contract, practice checklist, reflection, and verification record
+    template: learning.md
+    instruction: |
+      Create the learning plan for one configured learning session.
+
+      Define one primary learning goal and no more than two supporting concepts.
+      Write two to five independently verifiable practice tasks in dependency
+      order, using Markdown checkboxes exactly as shown in the template. Each
+      task must be small enough to complete and verify during the session.
+
+      The AI authors the learning contract, practice-task plan, and reserved AI
+      verification record. The human learner owns the `开始前`, `卡住时的记录`,
+      and `完成后` reflection fields. Preserve those fields for the learner rather
+      than filling them in. Stuck-state entries should capture the attempted
+      approach, observed evidence, current hypothesis, and the smallest hint
+      requested.
+    requires:
+      - proposal
+      - specs
+
+apply:
+  requires: [learning]
+  tracks: learning.md
+  instruction: |
+    The human learner writes all application and test implementation code.
+    AI assistance may inspect the code, explain concepts, diagnose failures,
+    review the learner's work, and offer progressive hints. The AI must not edit
+    application or test implementation files for the learner. Work through the
+    practice tasks in learning.md and let the learner mark each task complete.

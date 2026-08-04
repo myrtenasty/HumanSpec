@@ -192,6 +192,69 @@ describe('ArchiveCommand', () => {
       );
     });
 
+    it('uses an incomplete learning.md task in the existing safe confirmation flow', async () => {
+      const { confirm } = await import('@inquirer/prompts');
+      const mockConfirm = confirm as unknown as ReturnType<typeof vi.fn>;
+      mockConfirm.mockReset();
+      mockConfirm.mockResolvedValueOnce(false);
+
+      const changeName = 'human-learning-incomplete';
+      const changeDir = path.join(tempDir, 'openspec', 'changes', changeName);
+      await fs.mkdir(changeDir, { recursive: true });
+      await fs.writeFile(
+        path.join(changeDir, '.openspec.yaml'),
+        'schema: human-learning\n',
+        'utf-8'
+      );
+      await fs.writeFile(
+        path.join(changeDir, 'learning.md'),
+        '- [x] 1. Inspect behavior\n- [ ] 2. Implement change\n',
+        'utf-8'
+      );
+
+      await archiveCommand.execute(changeName, { skipSpecs: true });
+
+      expect(mockConfirm).toHaveBeenCalledWith({
+        message: 'Warning: 1 incomplete task(s) found. Continue?',
+        default: false,
+      });
+      expect(console.log).toHaveBeenCalledWith('Archive cancelled.');
+      await expect(fs.access(changeDir)).resolves.toBeUndefined();
+    });
+
+    it('archives a human-learning change when every learning.md task is complete', async () => {
+      const changeName = 'human-learning-complete';
+      const changeDir = path.join(tempDir, 'openspec', 'changes', changeName);
+      await fs.mkdir(changeDir, { recursive: true });
+      await fs.writeFile(
+        path.join(changeDir, '.openspec.yaml'),
+        'schema: human-learning\n',
+        'utf-8'
+      );
+      await fs.writeFile(
+        path.join(changeDir, 'learning.md'),
+        '- [x] 1. Inspect behavior\n- [x] 2. Implement change\n',
+        'utf-8'
+      );
+
+      await archiveCommand.execute(changeName, {
+        yes: true,
+        noValidate: true,
+        skipSpecs: true,
+      });
+
+      const archiveDir = path.join(tempDir, 'openspec', 'changes', 'archive');
+      const archivedNames = await fs.readdir(archiveDir);
+      expect(archivedNames).toHaveLength(1);
+      expect(archivedNames[0]).toMatch(
+        new RegExp(`^\\d{4}-\\d{2}-\\d{2}-${changeName}$`)
+      );
+      expect(console.log).not.toHaveBeenCalledWith(
+        expect.stringContaining('incomplete task(s) found')
+      );
+      await expect(fs.access(changeDir)).rejects.toMatchObject({ code: 'ENOENT' });
+    });
+
     it('detects incomplete tasks in nested glob tasks.md files (#1202 data-safety gate)', async () => {
       // Before the fix the gate read a fixed changes/<name>/tasks.md, saw zero
       // tasks for a glob-tasks change, and let an unfinished change archive.

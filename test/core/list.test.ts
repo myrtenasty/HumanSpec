@@ -99,6 +99,47 @@ Regular text that should be ignored
       expect(logOutput.some(line => line.includes('2/5 tasks'))).toBe(true);
     });
 
+    it('reports human-learning practice totals from learning.md in text and JSON', async () => {
+      const changesDir = path.join(tempDir, 'openspec', 'changes');
+      const changeDir = path.join(changesDir, 'practice-listing');
+      await fs.mkdir(changeDir, { recursive: true });
+      await fs.writeFile(
+        path.join(changeDir, '.openspec.yaml'),
+        'schema: human-learning\n',
+        'utf-8'
+      );
+      await fs.writeFile(
+        path.join(changeDir, 'learning.md'),
+        [
+          '## 实践任务',
+          '- [x] 1. Inspect behavior',
+          '- [ ] 2. Implement change',
+          '- [ ] 3. Verify outcome',
+          '',
+        ].join('\n'),
+        'utf-8'
+      );
+
+      const listCommand = new ListCommand();
+      await listCommand.execute(tempDir, 'changes', { sort: 'name' });
+      expect(
+        logOutput.some(
+          (line) => line.includes('practice-listing') && line.includes('1/3 tasks')
+        )
+      ).toBe(true);
+
+      logOutput = [];
+      await listCommand.execute(tempDir, 'changes', { sort: 'name', json: true });
+      expect(JSON.parse(logOutput.join('\n')).changes).toMatchObject([
+        {
+          name: 'practice-listing',
+          completedTasks: 1,
+          totalTasks: 3,
+          status: 'in-progress',
+        },
+      ]);
+    });
+
     it('should show complete status for fully completed changes', async () => {
       const changesDir = path.join(tempDir, 'openspec', 'changes');
       await fs.mkdir(path.join(changesDir, 'completed-change'), { recursive: true });

@@ -34,6 +34,10 @@ export interface ApplyInstructions {
   changeName: string;
   changeDir: string;
   schemaName: string;
+  /** Artifact IDs required by the schema before apply is available. */
+  applyRequires: string[];
+  /** Resolved progress-tracking path selected by apply.tracks, or null. */
+  tracks: string | null;
   contextFiles: Record<string, string[]>;
   progress: {
     total: number;
