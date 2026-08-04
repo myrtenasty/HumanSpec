@@ -166,3 +166,6 @@ opencode.json
 
 # Cursor
 .cursor/
+
+# Pi Coding Agent
+/.pi
