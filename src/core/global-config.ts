@@ -122,34 +122,42 @@ export function getGlobalConfigPath(): string {
  * Returns default configuration if file doesn't exist or is invalid.
  * Merges loaded config with defaults to ensure new fields are available.
  */
-export function getGlobalConfig(): GlobalConfig {
+export interface GlobalConfigLoadResult {
+  config: GlobalConfig;
+  /** Whether a valid profile was explicitly configured on disk. */
+  hasConfiguredProfile: boolean;
+}
+
+/**
+ * Loads global configuration while retaining whether its profile came from the
+ * file or from the core default. Callers that report profile provenance use
+ * this rather than treating materialized defaults as user configuration.
+ */
+export function getGlobalConfigWithSource(): GlobalConfigLoadResult {
   const configPath = getGlobalConfigPath();
 
   try {
     if (!fs.existsSync(configPath)) {
-      return { ...DEFAULT_CONFIG };
+      return { config: { ...DEFAULT_CONFIG }, hasConfiguredProfile: false };
     }
 
     const content = fs.readFileSync(configPath, 'utf-8');
     const parsed = JSON.parse(content);
+    const hasConfiguredProfile = VALID_PROFILES.includes(parsed.profile);
 
     // Merge with defaults (loaded values take precedence)
     const merged: GlobalConfig = {
       ...DEFAULT_CONFIG,
       ...parsed,
-      // Deep merge featureFlags
       featureFlags: {
         ...DEFAULT_CONFIG.featureFlags,
         ...(parsed.featureFlags || {})
       }
     };
 
-    // Schema evolution: apply defaults for new fields if not present in loaded config.
-    // An unsupported profile value falls back to 'core' with a warning, preserving
-    // every unrelated field (see global-config spec: invalid profile keeps core fallback).
     if (parsed.profile === undefined) {
       merged.profile = DEFAULT_CONFIG.profile;
-    } else if (!VALID_PROFILES.includes(parsed.profile)) {
+    } else if (!hasConfiguredProfile) {
       console.warn(
         `Warning: Invalid profile "${String(parsed.profile)}" in ${configPath}, using "${DEFAULT_CONFIG.profile}"`
       );
@@ -159,14 +167,17 @@ export function getGlobalConfig(): GlobalConfig {
       merged.delivery = DEFAULT_CONFIG.delivery;
     }
 
-    return merged;
+    return { config: merged, hasConfiguredProfile };
   } catch (error) {
-    // Log warning for parse errors, but not for missing files
     if (error instanceof SyntaxError) {
       console.error(`Warning: Invalid JSON in ${configPath}, using defaults`);
     }
-    return { ...DEFAULT_CONFIG };
+    return { config: { ...DEFAULT_CONFIG }, hasConfiguredProfile: false };
   }
+}
+
+export function getGlobalConfig(): GlobalConfig {
+  return getGlobalConfigWithSource().config;
 }
 
 /**

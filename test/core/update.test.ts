@@ -913,21 +913,15 @@ Old instructions content
           return originalWriteFile(filePath, content);
         });
 
-      const consoleSpy = vi.spyOn(console, 'log');
-
-      // Should not throw
-      await updateCommand.execute(testDir);
-
-      // Should report failure
-      expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Failed')
+      await expect(updateCommand.execute(testDir)).rejects.toThrow(
+        'restored managed workflow artifacts'
       );
+      expect(await fs.readFile(path.join(skillsDir, 'openspec-explore', 'SKILL.md'), 'utf-8')).toBe('old');
 
       writeSpy.mockRestore();
-      consoleSpy.mockRestore();
     });
 
-    it('should continue updating other tools when one fails', async () => {
+    it('should restore earlier tools when a later tool fails', async () => {
       // Set up Claude and Cursor
       const claudeSkillsDir = path.join(testDir, '.claude', 'skills');
       await fs.mkdir(path.join(claudeSkillsDir, 'openspec-explore'), {
@@ -952,28 +946,21 @@ Old instructions content
       const writeSpy = vi
         .spyOn(FileSystemUtils, 'writeFile')
         .mockImplementation(async (filePath, content) => {
-          if (filePath.includes('.claude') && filePath.includes('SKILL.md')) {
+          if (filePath.includes('.cursor') && filePath.includes('SKILL.md')) {
             throw new Error('EACCES: permission denied');
           }
           return originalWriteFile(filePath, content);
         });
 
-      const consoleSpy = vi.spyOn(console, 'log');
-
-      await updateCommand.execute(testDir);
-
-      // Cursor should still be updated - check the actual format from ora spinner
-      expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Updated: Cursor')
+      await expect(updateCommand.execute(testDir)).rejects.toThrow(
+        'restored managed workflow artifacts'
       );
 
-      // Claude should be reported as failed
-      expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Failed')
-      );
+      // Claude was written before Cursor failed, then restored exactly.
+      expect(await fs.readFile(path.join(claudeSkillsDir, 'openspec-explore', 'SKILL.md'), 'utf-8')).toBe('old');
+      expect(await fs.readFile(path.join(cursorSkillsDir, 'openspec-explore', 'SKILL.md'), 'utf-8')).toBe('old');
 
       writeSpy.mockRestore();
-      consoleSpy.mockRestore();
     });
   });
 

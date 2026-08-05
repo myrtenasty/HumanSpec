@@ -187,6 +187,15 @@ describe('command completion registry', () => {
     }
   });
 
+  it('advertises the HumanSpec init profile in completion values and help', () => {
+    const init = command('init');
+    const profile = init?.flags.find((flag) => flag.name === 'profile');
+    expect(profile?.values).toEqual(['core', 'humanspec', 'custom']);
+    expect(profile?.description).toContain('humanspec');
+    const initCommand = program.commands.find((child) => child.name() === 'init');
+    expect(initCommand?.options.find((option) => option.long === '--profile')?.description).toContain('humanspec');
+  });
+
   it('tracks store subcommands under the store: telemetry path', () => {
     const storeGroup = program.commands.find((child) => child.name() === 'store');
     expect(storeGroup).toBeDefined();

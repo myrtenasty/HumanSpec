@@ -89,6 +89,20 @@ describe('config profile humanspec', () => {
     expect(confirm).not.toHaveBeenCalled();
   });
 
+  it('preset changes use the effective-project apply prompt', async () => {
+    const { saveGlobalConfig } = await import('../../src/core/global-config.js');
+    const { confirm } = await getPromptMocks();
+
+    fs.mkdirSync(path.join(tempDir, 'openspec'), { recursive: true });
+    fs.writeFileSync(path.join(tempDir, 'openspec', 'config.yaml'), 'schema: spec-driven\n', 'utf-8');
+    saveGlobalConfig({ featureFlags: {}, profile: 'core', delivery: 'both', workflows: ['propose', 'explore', 'apply', 'update', 'sync', 'archive'] });
+    confirm.mockResolvedValueOnce(false);
+
+    await runConfigCommand(['profile', 'humanspec']);
+
+    expect(confirm).toHaveBeenCalledWith({ message: 'Apply changes to this project now?', default: true });
+  });
+
   it('unknown preset is rejected', async () => {
     await runConfigCommand(['profile', 'apply']);
     expect(consoleErrorSpy).toHaveBeenCalledWith(
@@ -107,6 +121,21 @@ describe('config profile humanspec', () => {
     expect(deriveProfileFromWorkflowSelection([...HUMANSPEC_WORKFLOWS, 'apply'])).toBe('custom');
     expect(deriveProfileFromWorkflowSelection(['propose', 'explore', 'apply', 'update', 'sync', 'archive'])).toBe('core');
     expect(deriveProfileFromWorkflowSelection([])).toBe('custom');
+  });
+
+  it('uses the specified change labels in the interactive action menu', async () => {
+    const { select } = await getPromptMocks();
+    select.mockResolvedValueOnce('keep');
+
+    await runConfigCommand(['profile']);
+
+    const [prompt] = select.mock.calls[0] as [{ choices: Array<{ name: string }> }];
+    expect(prompt.choices.map((choice) => choice.name)).toEqual([
+      'Change delivery and workflows',
+      'Change delivery only',
+      'Change workflows only',
+      'Keep current settings (exit)',
+    ]);
   });
 
   it('interactive selector with exactly the seven workflows saves the humanspec preset in lifecycle order', async () => {
@@ -137,7 +166,8 @@ describe('config profile humanspec', () => {
     await runConfigCommand(['profile']);
 
     const allLogs = consoleLogSpy.mock.calls.map((args) => args.map(String).join(' '));
-    expect(allLogs.some((line) => line.includes('Project profile: humanspec'))).toBe(true);
+    expect(allLogs.some((line) => line.includes('Workflows: 7 selected (humanspec)'))).toBe(true);
+    expect(allLogs.some((line) => line.includes('Profile source: project config'))).toBe(true);
     expect(allLogs.some((line) => line.includes('overrides the global profile'))).toBe(true);
   });
 

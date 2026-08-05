@@ -141,6 +141,9 @@ describe('UpdateCommand humanspec profile', () => {
     const userNote = path.join(testDir, '.claude', 'skills', 'user-notes.md');
     await fs.mkdir(path.dirname(userNote), { recursive: true });
     await fs.writeFile(userNote, 'user notes\n');
+    // - a user-authored sibling inside a registered skill directory
+    const managedSibling = path.join(testDir, '.claude', 'skills', 'openspec-apply-change', 'notes.md');
+    await fs.writeFile(managedSibling, 'user notes inside managed directory\n');
     // - an unregistered namespace command next to the managed ones
     await writeCommand(path.join('.claude', 'commands', 'mycompany', 'apply.md'));
     // - a file outside the selected tool roots
@@ -159,6 +162,7 @@ describe('UpdateCommand humanspec profile', () => {
     // User files preserved.
     expect(await exists(path.join(testDir, '.claude', 'skills', 'openspec-apply-change-backup', 'SKILL.md'))).toBe(true);
     expect(await exists(userNote)).toBe(true);
+    expect(await exists(managedSibling)).toBe(true);
     expect(await exists(path.join(testDir, '.claude', 'commands', 'mycompany', 'apply.md'))).toBe(true);
     expect(await exists(path.join(testDir, '.other-tool', 'opsx-apply.md'))).toBe(true);
   });

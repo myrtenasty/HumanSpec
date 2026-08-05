@@ -56,6 +56,7 @@ import {
   WORKFLOW_TO_SKILL_DIR,
   getConfiguredToolsForProfileSync,
   getToolsNeedingProfileSync,
+  removeManagedSkillFiles,
 } from './profile-sync-drift.js';
 import {
   scanInstalledWorkflows as scanInstalledWorkflowsShared,
@@ -97,6 +98,8 @@ export interface UpdateCommandOptions {
   /** Force update even when tools are up to date */
   force?: boolean;
 }
+
+type ManagedArtifactSnapshot = Map<string, string | null>;
 
 /**
  * Scans installed workflow artifacts (skills and managed commands) across all configured tools.
@@ -258,13 +261,15 @@ export class UpdateCommand {
     // 10. Update tools (all if force, otherwise only those needing update)
     const toolsToUpdate = this.force ? configuredTools : [...toolsToUpdateSet];
     const updatedTools: string[] = [];
-    const failedTools: Array<{ name: string; error: string }> = [];
     const skillsInvocableCommandSkips: string[] = [];
     const zeroArtifactTools: string[] = [];
     let removedCommandCount = 0;
     let removedSkillCount = 0;
     let removedDeselectedCommandCount = 0;
     let removedDeselectedSkillCount = 0;
+    // Snapshot exact managed paths before any tool changes. A failure later in
+    // the loop restores every configured tool to its pre-update state.
+    const snapshot = await this.snapshotManagedArtifacts(resolvedProjectPath, toolsToUpdate);
 
     for (const toolId of toolsToUpdate) {
       const tool = AI_TOOLS.find((t) => t.value === toolId);
@@ -342,10 +347,11 @@ export class UpdateCommand {
         updatedTools.push(tool.name);
       } catch (error) {
         spinner.fail(`Failed to update ${tool.name}`);
-        failedTools.push({
-          name: tool.name,
-          error: error instanceof Error ? error.message : String(error)
-        });
+        await this.restoreManagedArtifacts(snapshot);
+        throw new Error(
+          `Update failed for ${tool.name}; restored managed workflow artifacts: ` +
+          (error instanceof Error ? error.message : String(error))
+        );
       }
     }
 
@@ -357,9 +363,6 @@ export class UpdateCommand {
     console.log();
     if (updatedTools.length > 0) {
       console.log(chalk.green(`✓ Updated: ${updatedTools.join(', ')} (v${OPENSPEC_VERSION})`));
-    }
-    if (failedTools.length > 0) {
-      console.log(chalk.red(`✗ Failed: ${failedTools.map(f => `${f.name} (${f.error})`).join(', ')}`));
     }
     if (skillsInvocableCommandSkips.length > 0) {
       console.log(chalk.dim(`Commands skipped for: ${skillsInvocableCommandSkips.join(', ')} (uses skills)`));
@@ -571,29 +574,63 @@ export class UpdateCommand {
     console.log(chalk.dim(`Run \`openspec config profile\` to add ${pronoun}, or \`openspec config profile core\` to use the core set.`));
   }
 
-  /**
-   * Removes skill directories for workflows when delivery changed to commands-only.
-   * Returns the number of directories removed.
-   */
-  private async removeSkillDirs(skillsDir: string): Promise<number> {
-    let removed = 0;
-
-    for (const workflow of REGISTERED_WORKFLOWS) {
-      const dirName = WORKFLOW_TO_SKILL_DIR[workflow];
-      if (!dirName) continue;
-
-      const skillDir = path.join(skillsDir, dirName);
+  /** Snapshot the exact generated paths that this update may touch. */
+  private async snapshotManagedArtifacts(
+    projectPath: string,
+    toolIds: readonly string[]
+  ): Promise<ManagedArtifactSnapshot> {
+    const snapshot: ManagedArtifactSnapshot = new Map();
+    const remember = async (filePath: string): Promise<void> => {
+      if (snapshot.has(filePath)) return;
       try {
-        if (fs.existsSync(skillDir)) {
-          await fs.promises.rm(skillDir, { recursive: true, force: true });
-          removed++;
+        snapshot.set(filePath, await fs.promises.readFile(filePath, 'utf-8'));
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+          snapshot.set(filePath, null);
+          return;
         }
-      } catch {
-        // Ignore errors
+        throw error;
+      }
+    };
+
+    for (const toolId of toolIds) {
+      const tool = AI_TOOLS.find((candidate) => candidate.value === toolId);
+      if (!tool?.skillsDir) continue;
+      const skillsDir = path.join(projectPath, tool.skillsDir, 'skills');
+      for (const workflow of REGISTERED_WORKFLOWS) {
+        await remember(path.join(skillsDir, WORKFLOW_TO_SKILL_DIR[workflow], 'SKILL.md'));
+      }
+      const adapter = CommandAdapterRegistry.get(toolId);
+      if (!adapter) continue;
+      for (const descriptor of MANAGED_COMMANDS) {
+        const cmdPath = adapter.getFilePath(descriptor);
+        await remember(path.isAbsolute(cmdPath) ? cmdPath : path.join(projectPath, cmdPath));
       }
     }
 
-    return removed;
+    return snapshot;
+  }
+
+  /** Restore the exact managed state after a failed multi-tool update. */
+  private async restoreManagedArtifacts(snapshot: ManagedArtifactSnapshot): Promise<void> {
+    for (const [filePath, content] of snapshot) {
+      if (content === null) {
+        await fs.promises.unlink(filePath).catch((error: NodeJS.ErrnoException) => {
+          if (error.code !== 'ENOENT') throw error;
+        });
+        continue;
+      }
+      await fs.promises.mkdir(path.dirname(filePath), { recursive: true });
+      await fs.promises.writeFile(filePath, content, 'utf-8');
+    }
+  }
+
+  /**
+   * Removes skill directories for workflows when delivery changed to commands-only.
+   * Returns the number of generated skill files removed.
+   */
+  private async removeSkillDirs(skillsDir: string): Promise<number> {
+    return removeManagedSkillFiles(skillsDir);
   }
 
   /**
@@ -604,26 +641,11 @@ export class UpdateCommand {
     skillsDir: string,
     desiredWorkflows: readonly RegisteredWorkflowId[]
   ): Promise<number> {
-    const desiredSet = new Set(desiredWorkflows);
-    let removed = 0;
-
-    for (const workflow of REGISTERED_WORKFLOWS) {
-      if (desiredSet.has(workflow)) continue;
-      const dirName = WORKFLOW_TO_SKILL_DIR[workflow];
-      if (!dirName) continue;
-
-      const skillDir = path.join(skillsDir, dirName);
-      try {
-        if (fs.existsSync(skillDir)) {
-          await fs.promises.rm(skillDir, { recursive: true, force: true });
-          removed++;
-        }
-      } catch {
-        // Ignore errors
-      }
-    }
-
-    return removed;
+    const desired = new Set(desiredWorkflows);
+    return removeManagedSkillFiles(
+      skillsDir,
+      REGISTERED_WORKFLOWS.filter((workflow) => !desired.has(workflow))
+    );
   }
 
   /**
@@ -644,12 +666,10 @@ export class UpdateCommand {
       const fullPath = path.isAbsolute(cmdPath) ? cmdPath : path.join(projectPath, cmdPath);
 
       try {
-        if (fs.existsSync(fullPath)) {
-          await fs.promises.unlink(fullPath);
-          removed++;
-        }
-      } catch {
-        // Ignore errors
+        await fs.promises.unlink(fullPath);
+        removed++;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
       }
     }
 
@@ -678,12 +698,10 @@ export class UpdateCommand {
       const fullPath = path.isAbsolute(cmdPath) ? cmdPath : path.join(projectPath, cmdPath);
 
       try {
-        if (fs.existsSync(fullPath)) {
-          await fs.promises.unlink(fullPath);
-          removed++;
-        }
-      } catch {
-        // Ignore errors
+        await fs.promises.unlink(fullPath);
+        removed++;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
       }
     }
 

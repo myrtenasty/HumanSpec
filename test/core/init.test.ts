@@ -1563,8 +1563,11 @@ describe('InitCommand - humanspec profile', () => {
     expect(after).toBe(original);
   });
 
-  it('fails before writing any artifacts when the profile override is invalid', async () => {
+  it('fails before writing or deleting artifacts when the profile override is invalid', async () => {
     saveGlobalConfig({ featureFlags: {}, profile: 'core', delivery: 'both' });
+    const legacyCommand = path.join(testDir, '.cursor', 'commands', 'openspec-proposal.md');
+    await fs.mkdir(path.dirname(legacyCommand), { recursive: true });
+    await fs.writeFile(legacyCommand, '# legacy proposal\n');
     const initCommand = new InitCommand({ tools: 'claude', force: true, profile: 'bogus' });
 
     await expect(initCommand.execute(testDir)).rejects.toThrow(/Invalid profile "bogus"/);
@@ -1572,5 +1575,39 @@ describe('InitCommand - humanspec profile', () => {
     expect(await fileExists(path.join(testDir, 'openspec', 'config.yaml'))).toBe(false);
     expect(await fileExists(path.join(testDir, '.claude', 'skills', 'openspec-propose', 'SKILL.md'))).toBe(false);
     expect(await fileExists(path.join(testDir, '.claude', 'commands', 'opsx', 'propose.md'))).toBe(false);
+    expect(await fileExists(legacyCommand)).toBe(true);
+  });
+
+  it('reconciles stale core artifacts during an extend-mode HumanSpec init without deleting user siblings', async () => {
+    saveGlobalConfig({ featureFlags: {}, profile: 'core', delivery: 'both' });
+    await fs.mkdir(path.join(testDir, 'openspec'), { recursive: true });
+    await fs.writeFile(path.join(testDir, 'openspec', 'config.yaml'), 'schema: human-learning\nprofile: humanspec\n');
+    const staleSkill = path.join(testDir, '.claude', 'skills', 'openspec-apply-change', 'SKILL.md');
+    const sibling = path.join(testDir, '.claude', 'skills', 'openspec-apply-change', 'notes.md');
+    const staleCommand = path.join(testDir, '.claude', 'commands', 'opsx', 'apply.md');
+    await fs.mkdir(path.dirname(staleSkill), { recursive: true });
+    await fs.mkdir(path.dirname(staleCommand), { recursive: true });
+    await fs.writeFile(staleSkill, '# managed\n');
+    await fs.writeFile(sibling, '# user note\n');
+    await fs.writeFile(staleCommand, '# managed\n');
+
+    await new InitCommand({ tools: 'claude', force: true }).execute(testDir);
+
+    expect(await fileExists(staleSkill)).toBe(false);
+    expect(await fileExists(staleCommand)).toBe(false);
+    expect(await fileExists(sibling)).toBe(true);
+    expect(await fileExists(path.join(testDir, '.claude', 'skills', 'humanspec-init', 'SKILL.md'))).toBe(true);
+    expect(await fileExists(path.join(testDir, '.claude', 'commands', 'humanspec', 'init.md'))).toBe(true);
+  });
+
+  it('reports default profile provenance and totals across selected tools', async () => {
+    const initCommand = new InitCommand({ tools: 'claude,cursor', force: true });
+    await initCommand.execute(testDir);
+
+    const logCalls = (console.log as unknown as { mock: { calls: unknown[][] } }).mock.calls
+      .flat()
+      .map(String);
+    expect(logCalls).toContain('Profile: core (source: default (core))');
+    expect(logCalls).toContain('12 skills and 12 commands in .claude, .cursor/');
   });
 });

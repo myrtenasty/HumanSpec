@@ -19,9 +19,9 @@ export const COMMAND_REGISTRY: CommandDefinition[] = [
       },
       {
         name: 'profile',
-        description: 'Override global config profile (core or custom)',
+        description: 'Override global config profile (core, humanspec, or custom)',
         takesValue: true,
-        values: ['core', 'custom'],
+        values: ['core', 'humanspec', 'custom'],
       },
       {
         name: 'no-animation',

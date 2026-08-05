@@ -51,7 +51,7 @@ import {
   generateSkillContent,
   type ToolSkillStatus,
 } from './shared/index.js';
-import { getGlobalConfig, type Delivery, type Profile } from './global-config.js';
+import { getGlobalConfig, getGlobalConfigWithSource, type Delivery, type Profile } from './global-config.js';
 import {
   getProfileWorkflows,
   CORE_WORKFLOWS,
@@ -60,7 +60,7 @@ import {
 import { resolveEffectiveProfile, validateCliProfileOverride, type EffectiveProfile } from './effective-profile.js';
 import { getAvailableTools } from './available-tools.js';
 import { getCommandDescriptorForWorkflow } from './templates/command-descriptors.js';
-import { WORKFLOW_TO_SKILL_DIR } from './profile-sync-drift.js';
+import { removeManagedSkillFiles } from './profile-sync-drift.js';
 import { migrateIfNeeded, migrateLegacyToolDirs, describeLegacyMigration, keptInPlaceNotice, hasMovableContent, scanInstalledWorkflows as scanInstalledWorkflowsShared } from './migration.js';
 import {
   resolveCommandSurfaceCapability,
@@ -137,6 +137,11 @@ export class InitCommand {
     const openspecDir = OPENSPEC_DIR_NAME;
     const openspecPath = path.join(projectPath, openspecDir);
 
+    // Validate the CLI value before any operation that can write, migrate, or
+    // delete artifacts. Effective resolution follows migrations below, which
+    // can establish a legacy project's profile selection.
+    this.resolveProfileOverride();
+
     // Validation happens silently in the background
     const extendMode = await this.validate(projectPath, openspecPath);
 
@@ -182,16 +187,21 @@ export class InitCommand {
       migrateIfNeeded(projectPath, detectedTools);
     }
 
-    // Validate profile override early so invalid values fail before tool setup.
-    // The resolved effective profile (CLI → project config → global → core)
-    // is computed here, before any artifact write or deletion, so an invalid
-    // selection can never leave partial output behind.
-    this.resolveProfileOverride();
-    this.effectiveProfile = resolveEffectiveProfile({
+    // Resolve after legacy migration has established any inferred profile, but
+    // retain whether the global profile was explicitly configured on disk.
+    const global = getGlobalConfigWithSource();
+    const effective = resolveEffectiveProfile({
       cliProfile: this.resolveProfileOverride(),
       projectConfig: readProjectConfig(projectPath),
+      // getGlobalConfig remains the single value source used throughout init;
+      // the provenance read below only changes how a materialized default is
+      // reported to the user.
       globalConfig: getGlobalConfig(),
     });
+    if (!global.hasConfiguredProfile && effective.source === 'global') {
+      effective.source = 'default';
+    }
+    this.effectiveProfile = effective;
 
     // Show animated welcome screen (interactive mode only)
     const canPrompt = this.canPromptInteractively();
@@ -696,6 +706,8 @@ export class InitCommand {
     skillsInvocableCommandSkips: string[];
     removedCommandCount: number;
     removedSkillCount: number;
+    generatedSkillCount: number;
+    generatedCommandCount: number;
   }> {
     const createdTools: typeof tools = [];
     const refreshedTools: typeof tools = [];
@@ -704,6 +716,8 @@ export class InitCommand {
     const skillsInvocableCommandSkips: string[] = [];
     let removedCommandCount = 0;
     let removedSkillCount = 0;
+    let generatedSkillCount = 0;
+    let generatedCommandCount = 0;
 
     // Resolve the effective profile (CLI override → project config → global
     // config → core) and delivery once; every artifact generated below follows
@@ -751,7 +765,9 @@ export class InitCommand {
 
             // Write the skill file
             await FileSystemUtils.writeFile(skillFile, skillContent);
+            generatedSkillCount++;
           }
+          removedSkillCount += await this.removeUnselectedSkillDirs(skillsDir, workflows);
         }
         if (shouldRemoveSkillsForTool(tool.value, delivery)) {
           const skillsDir = path.join(projectPath, tool.skillsDir, 'skills');
@@ -767,7 +783,9 @@ export class InitCommand {
             for (const cmd of generatedCommands) {
               const commandFile = path.isAbsolute(cmd.path) ? cmd.path : path.join(projectPath, cmd.path);
               await FileSystemUtils.writeFile(commandFile, cmd.fileContent);
+              generatedCommandCount++;
             }
+            removedCommandCount += await this.removeUnselectedCommandFiles(projectPath, tool.value, workflows);
           }
         } else if (deliveryIncludesCommands) {
           if (resolveCommandSurfaceCapability(tool.value) === 'skills-invocable') {
@@ -801,6 +819,8 @@ export class InitCommand {
       skillsInvocableCommandSkips,
       removedCommandCount,
       removedSkillCount,
+      generatedSkillCount,
+      generatedCommandCount,
     };
   }
 
@@ -883,6 +903,8 @@ export class InitCommand {
       skillsInvocableCommandSkips: string[];
       removedCommandCount: number;
       removedSkillCount: number;
+      generatedSkillCount: number;
+      generatedCommandCount: number;
     },
     configStatus: 'created' | 'exists' | 'updated' | 'skipped'
   ): void {
@@ -901,16 +923,9 @@ export class InitCommand {
     // Show counts (respecting profile filter)
     const successfulTools = [...results.createdTools, ...results.refreshedTools];
     if (successfulTools.length > 0) {
-      const effective = this.getEffectiveProfile();
-      const delivery: Delivery = getGlobalConfig().delivery ?? 'both';
-      const workflows = effective.workflows;
       const toolDirs = [...new Set(successfulTools.map((t) => t.skillsDir))].join(', ');
-      const skillCount = successfulTools.some((tool) => shouldGenerateSkillsForTool(tool.value, delivery))
-        ? getSkillTemplates(workflows).length
-        : 0;
-      const commandCount = successfulTools.some((tool) => shouldGenerateCommandsForTool(tool.value, delivery))
-        ? getCommandContents(workflows).length
-        : 0;
+      const skillCount = results.generatedSkillCount;
+      const commandCount = results.generatedCommandCount;
       if (skillCount > 0 && commandCount > 0) {
         console.log(`${skillCount} skills and ${commandCount} commands in ${toolDirs}/`);
       } else if (skillCount > 0) {
@@ -1134,42 +1149,43 @@ export class InitCommand {
   }
 
   private async removeSkillDirs(skillsDir: string): Promise<number> {
-    let removed = 0;
+    return removeManagedSkillFiles(skillsDir);
+  }
 
-    for (const workflow of REGISTERED_WORKFLOWS) {
-      const dirName = WORKFLOW_TO_SKILL_DIR[workflow];
-      if (!dirName) continue;
-
-      const skillDir = path.join(skillsDir, dirName);
-      try {
-        if (fs.existsSync(skillDir)) {
-          await fs.promises.rm(skillDir, { recursive: true, force: true });
-          removed++;
-        }
-      } catch {
-        // Ignore errors
-      }
-    }
-
-    return removed;
+  private async removeUnselectedSkillDirs(
+    skillsDir: string,
+    desiredWorkflows: readonly string[]
+  ): Promise<number> {
+    const desired = new Set(desiredWorkflows);
+    return removeManagedSkillFiles(
+      skillsDir,
+      REGISTERED_WORKFLOWS.filter((workflow) => !desired.has(workflow))
+    );
   }
 
   private async removeCommandFiles(projectPath: string, toolId: string): Promise<number> {
+    return this.removeUnselectedCommandFiles(projectPath, toolId, []);
+  }
+
+  private async removeUnselectedCommandFiles(
+    projectPath: string,
+    toolId: string,
+    desiredWorkflows: readonly string[]
+  ): Promise<number> {
     let removed = 0;
     const adapter = CommandAdapterRegistry.get(toolId);
     if (!adapter) return 0;
+    const desired = new Set(desiredWorkflows);
 
     for (const descriptor of MANAGED_COMMANDS) {
+      if (desired.has(descriptor.workflowId)) continue;
       const cmdPath = adapter.getFilePath(descriptor);
       const fullPath = path.isAbsolute(cmdPath) ? cmdPath : path.join(projectPath, cmdPath);
-
       try {
-        if (fs.existsSync(fullPath)) {
-          await fs.promises.unlink(fullPath);
-          removed++;
-        }
-      } catch {
-        // Ignore errors
+        await fs.promises.unlink(fullPath);
+        removed++;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
       }
     }
 

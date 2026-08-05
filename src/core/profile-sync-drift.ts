@@ -23,6 +23,40 @@ export const WORKFLOW_TO_SKILL_DIR = Object.fromEntries(
   COMMAND_DESCRIPTORS.map((descriptor) => [descriptor.workflowId, descriptor.skillDirName])
 ) as Record<WorkflowId, string>;
 
+/**
+ * Removes only OpenSpec's generated skill file for registered workflows.
+ * User-authored siblings make the directory non-empty and are deliberately
+ * retained. Filesystem failures are surfaced to the caller so reconciliation
+ * cannot report a successful partial cleanup.
+ */
+export async function removeManagedSkillFiles(
+  skillsDir: string,
+  workflows: readonly WorkflowId[] = REGISTERED_WORKFLOWS
+): Promise<number> {
+  let removed = 0;
+
+  for (const workflow of workflows) {
+    const skillDir = path.join(skillsDir, WORKFLOW_TO_SKILL_DIR[workflow]);
+    const skillFile = path.join(skillDir, 'SKILL.md');
+    try {
+      await fs.promises.unlink(skillFile);
+      removed++;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue;
+      throw error;
+    }
+
+    try {
+      await fs.promises.rmdir(skillDir);
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code !== 'ENOENT' && code !== 'ENOTEMPTY') throw error;
+    }
+  }
+
+  return removed;
+}
+
 function toKnownWorkflows(workflows: readonly string[]): WorkflowId[] {
   return workflows.filter(isRegisteredWorkflow);
 }
@@ -67,20 +101,20 @@ export function hasToolProfileOrDeliveryDrift(
       }
     }
 
-    // Deselecting workflows in a profile should trigger sync.
+    // Deselecting workflows in a profile should trigger sync only for the
+    // generated file; a user-authored sibling in a former skill directory is
+    // not OpenSpec drift.
     for (const workflow of REGISTERED_WORKFLOWS) {
       if (desiredWorkflowSet.has(workflow)) continue;
-      const dirName = WORKFLOW_TO_SKILL_DIR[workflow];
-      const skillDir = path.join(skillsDir, dirName);
-      if (fs.existsSync(skillDir)) {
+      const skillFile = path.join(skillsDir, WORKFLOW_TO_SKILL_DIR[workflow], 'SKILL.md');
+      if (fs.existsSync(skillFile)) {
         return true;
       }
     }
   } else if (shouldRemoveSkillsForTool(toolId, delivery)) {
     for (const workflow of REGISTERED_WORKFLOWS) {
-      const dirName = WORKFLOW_TO_SKILL_DIR[workflow];
-      const skillDir = path.join(skillsDir, dirName);
-      if (fs.existsSync(skillDir)) {
+      const skillFile = path.join(skillsDir, WORKFLOW_TO_SKILL_DIR[workflow], 'SKILL.md');
+      if (fs.existsSync(skillFile)) {
         return true;
       }
     }

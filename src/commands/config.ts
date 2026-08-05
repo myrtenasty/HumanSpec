@@ -278,6 +278,61 @@ function printConfigProfileApplyGuidance(): void {
   console.log('Config updated. Run `openspec update` in your projects to apply.');
 }
 
+/** Apply named shortcuts with the same effective-project semantics as the picker. */
+async function applyPresetProfile(config: GlobalConfig, preset: 'core' | 'humanspec'): Promise<void> {
+  const currentState = resolveCurrentProfileState(config);
+  const nextState: ProfileState = {
+    profile: preset,
+    delivery: currentState.delivery,
+    workflows: preset === 'core' ? [...CORE_WORKFLOWS] : [...HUMANSPEC_WORKFLOWS],
+  };
+  const diff = diffProfileState(currentState, nextState);
+  const projectDir = process.cwd();
+
+  if (!diff.hasChanges) {
+    console.log('No config changes.');
+    maybeWarnProjectConfigDrift(projectDir, currentState, (message) => message);
+    return;
+  }
+
+  config.profile = nextState.profile;
+  config.delivery = nextState.delivery;
+  config.workflows = nextState.workflows;
+  saveGlobalConfig(config);
+
+  const projectConfig = readProjectConfig(projectDir);
+  if (fs.existsSync(path.join(projectDir, OPENSPEC_DIR_NAME)) && projectConfig !== null) {
+    const effectiveBefore = resolveProjectEffectiveState(projectDir, currentState);
+    const effectiveAfter = resolveProjectEffectiveState(projectDir, nextState);
+    const effectiveChanged =
+      effectiveBefore.profile !== effectiveAfter.profile ||
+      effectiveBefore.delivery !== effectiveAfter.delivery ||
+      effectiveBefore.workflows.join('\u0000') !== effectiveAfter.workflows.join('\u0000');
+
+    if (projectConfig.profile !== undefined) {
+      printProjectOverrideNotice(projectDir);
+    }
+    if (effectiveChanged) {
+      const { confirm } = await import('@inquirer/prompts');
+      if (await confirm({ message: 'Apply changes to this project now?', default: true })) {
+        try {
+          await new UpdateCommand().execute(projectDir);
+          console.log('Run `openspec update` in your other projects to apply.');
+        } catch (error) {
+          console.error(`\`openspec update\` failed: ${asErrorMessage(error)}`);
+          console.error('Please run it manually to apply the profile changes.');
+          process.exitCode = 1;
+        }
+        return;
+      }
+    } else {
+      console.log('No config changes for this project (its own profile already determines workflow membership).');
+    }
+  }
+
+  printConfigProfileApplyGuidance();
+}
+
 /**
  * Register the config command and all its subcommands.
  *
@@ -538,25 +593,8 @@ export function registerConfigCommand(program: Command): void {
     .description('Configure workflow profile (interactive picker or preset shortcut)')
     .action(async (preset?: string) => {
       // Preset shortcuts: `openspec config profile core|humanspec`
-      if (preset === 'core') {
-        const config = getGlobalConfig();
-        config.profile = 'core';
-        config.workflows = [...CORE_WORKFLOWS];
-        // Preserve delivery setting
-        saveGlobalConfig(config);
-        printProjectOverrideNotice(process.cwd());
-        printConfigProfileApplyGuidance();
-        return;
-      }
-
-      if (preset === 'humanspec') {
-        const config = getGlobalConfig();
-        config.profile = 'humanspec';
-        config.workflows = [...HUMANSPEC_WORKFLOWS];
-        // Preserve delivery setting
-        saveGlobalConfig(config);
-        printProjectOverrideNotice(process.cwd());
-        printConfigProfileApplyGuidance();
+      if (preset === 'core' || preset === 'humanspec') {
+        await applyPresetProfile(getGlobalConfig(), preset);
         return;
       }
 
@@ -584,13 +622,14 @@ export function registerConfigCommand(program: Command): void {
         const projectState = resolveProjectEffectiveState(projectDir, currentState);
         const projectDeclaresProfile = readProjectConfig(projectDir)?.profile !== undefined;
 
+        const displayedState = projectDeclaresProfile ? projectState : currentState;
         console.log(chalk.bold('\nCurrent profile settings'));
-        console.log(`  Delivery: ${currentState.delivery}`);
-        console.log(`  Workflows: ${formatWorkflowSummary(currentState.workflows, currentState.profile)}`);
+        console.log(`  Delivery: ${displayedState.delivery}`);
+        console.log(`  Workflows: ${formatWorkflowSummary(displayedState.workflows, displayedState.profile)}`);
         if (projectDeclaresProfile) {
           console.log(
             chalk.dim(
-              `  Project profile: ${projectState.profile} (openspec/config.yaml overrides the global profile for this project)`
+              '  Profile source: project config (openspec/config.yaml overrides the global profile for this project)'
             )
           );
         }
@@ -603,17 +642,17 @@ export function registerConfigCommand(program: Command): void {
           choices: [
             {
               value: 'both',
-              name: 'Delivery and workflows',
+              name: 'Change delivery and workflows',
               description: 'Update install mode and available actions together',
             },
             {
               value: 'delivery',
-              name: 'Delivery only',
+              name: 'Change delivery only',
               description: 'Change where workflows are installed',
             },
             {
               value: 'workflows',
-              name: 'Workflows only',
+              name: 'Change workflows only',
               description: 'Change which workflow actions are available',
             },
             {
