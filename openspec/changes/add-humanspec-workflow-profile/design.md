@@ -139,7 +139,38 @@ The temporary registrations stay in the existing lists and mappings, guarded by 
 5. Rebase active scope/capability changes and verify the combined behavior matrix.
 6. Run generated-output parity, cross-tool integration, Windows CI, build, and full tests.
 
-Rollback selects `core` for affected projects, runs update to restore the OpenSpec managed set, and then removes the HumanSpec registrations and project-profile fields. Project planning documents and user-authored files remain recoverable because cleanup never targets them.
+## Stacking Notes (implementation record)
+
+Applied on top of `support-workflow-command-namespaces`, which is fully
+implemented (command identities `/humanspec:<id>`, `/humanspec-<id>`, and
+`@humanspec-<id>` come from that change). The overlap review for the two
+active sibling changes:
+
+- `add-tool-command-surface-capabilities` (not yet implemented): that change
+  decides per-tool artifact type/location (adapter-backed, skills-invocable,
+  none). This change consumes it through the existing
+  `command-surface.ts` helpers and never re-decides the surface itself.
+  Overlap is limited to `getTransformerForTool` receiving the template's
+  command namespace so reference rewriting stays family-accurate; the
+  capability and invocation inputs are unchanged.
+- `add-global-install-scope` (not yet implemented): install scope decides
+  whether artifacts land in the project or the machine profile. This change
+  keeps profile membership (WHICH workflows), install scope (WHERE), delivery
+  (HOW), and command-surface capability (WHAT surfaces) as four separate
+  resolver inputs — the combined tests keep them separate (see
+  `update-humanspec.test.ts` "keeps delivery-only and command-surface
+  dimensions independent"). When the scope change lands, reconciliation
+  applies scope after resolving workflow membership, per Decision 6.
+
+These two changes were not required to land first: this change's tests keep
+the four dimensions independent, and the shared effective-profile resolver is
+the single point where the scope change later plugs in. Windows CI
+(`.github/workflows/ci.yml`, windows-latest) runs the new path-sensitive
+init/update/profile-switch tests (tasks 6.1-6.3).
+
+## Rollback
+
+Selects `core` for affected projects, runs update to restore the OpenSpec managed set, and then removes the HumanSpec registrations and project-profile fields. Project planning documents and user-authored files remain recoverable because cleanup never targets them.
 
 ## Open Questions
 

@@ -28,6 +28,20 @@ import {
   getSyncSpecsSkillTemplate,
   getUpdateChangeSkillTemplate,
   getVerifyChangeSkillTemplate,
+  getHumanspecInitSkillTemplate,
+  getHumanspecNextSkillTemplate,
+  getHumanspecProposeSkillTemplate,
+  getHumanspecCoachSkillTemplate,
+  getHumanspecVerifySkillTemplate,
+  getHumanspecArchiveSkillTemplate,
+  getHumanspecExploreSkillTemplate,
+  getHumanspecInitCommandTemplate,
+  getHumanspecNextCommandTemplate,
+  getHumanspecProposeCommandTemplate,
+  getHumanspecCoachCommandTemplate,
+  getHumanspecVerifyCommandTemplate,
+  getHumanspecArchiveCommandTemplate,
+  getHumanspecExploreCommandTemplate,
 } from '../../../src/core/templates/skill-templates.js';
 import {
   generateSkillContent,
@@ -62,6 +76,20 @@ const EXPECTED_FUNCTION_HASHES: Record<string, string> = {
   getFeedbackSkillTemplate: 'd7d83c5f7fc2b92fe8f4588a5bf2d9cb315e4c73ec19bcd5ef28270906319a0d',
   getUpdateChangeSkillTemplate: 'da1f76a91ba606df6aa895431c79e64ca91580fa952807230e653bddeb2a3c15',
   getOpsxUpdateCommandTemplate: 'afbf85f79177a0125bbc2028ed50e23f59ea96c2b6ef4153ed9bce6465c6414e',
+  getHumanspecInitSkillTemplate: '244cc6c802b9c6afa0e57c5cb23689f5cacbbc68151b43cb02f22bafe5282444',
+  getHumanspecInitCommandTemplate: '71f2ae75a9dd17aec0ae34b0de42cde060c4e7384b9ef8e77bd02490c358fe06',
+  getHumanspecNextSkillTemplate: 'b57918dd039c846d9e602ba81df465a025eb5a431481d8453d7242548cb8b7d9',
+  getHumanspecNextCommandTemplate: 'c75775a7e58fb51951de8ac6e469184f4ed9937e53a1df6d91152f388c6baeb8',
+  getHumanspecProposeSkillTemplate: 'd1349153aeb89e0ba3728d1b73b2794d08227c4b02f1a0b4592f30f67954375a',
+  getHumanspecProposeCommandTemplate: '14bd61a15f2fbd47bff220d5e4d9a884002e9e045191f03e6517be6918f12b34',
+  getHumanspecCoachSkillTemplate: 'c71aa2ea446829deb54625bf4611a4a9aebf4403e1e0d9a55d8f5a45849f12df',
+  getHumanspecCoachCommandTemplate: '71b50b10452631b2b48f8fe3b15f0d097357b86c61fa042077cc2b544290d283',
+  getHumanspecVerifySkillTemplate: '8b4546c8fa947e175b863f702a047ae99fb8ec743522b50f8059e7327ec63484',
+  getHumanspecVerifyCommandTemplate: '35e5e2d8659ee15be73ba7e9e00f14b0ee0d4ac597b0576081aa485341350b35',
+  getHumanspecArchiveSkillTemplate: '4a9afb41eb2081306d8fb0d07e2ef755944f0e30ef2250f50db15dee758624d2',
+  getHumanspecArchiveCommandTemplate: '5d30667e910f4e8185025aeafb5fde24e27dbcb2cf8077ea652ccc029010d3b7',
+  getHumanspecExploreSkillTemplate: 'a230ce6205282338fb980d3d6f5b9742d3e5998982991b53569c83d18edc4dd5',
+  getHumanspecExploreCommandTemplate: '9d2c74e5cd5756e869fe08fe0480909255f7f3d9214a25a87db943db2f11848e',
 };
 
 const EXPECTED_GENERATED_SKILL_CONTENT_HASHES: Record<string, string> = {
@@ -77,6 +105,13 @@ const EXPECTED_GENERATED_SKILL_CONTENT_HASHES: Record<string, string> = {
   'openspec-onboard': '6eb124af3a9f35efe601ff373406fad93447a1375e0bb4e27a35b0c3fd476851',
   'openspec-propose': '6b49634d3672e7fef4750a8c7572a661fec0dafe6d52a0075b41a2c87a793871',
   'openspec-update-change': '1e61edfcd229b5b3e7ea957a5606712805cae19709304b26448fe111657a7255',
+  'humanspec-init': 'cc5a43ec3b4abc9e0d022500113ee31558ccde59a0b66fdbe90aab960db0d103',
+  'humanspec-next': '736dd68b74d32db410611e098ee9803829743f9067ba6f8d9f8eb2eced98b5ed',
+  'humanspec-propose': '63b42b3b9941d224c5478e805c1d84568d154aea03ce73bd5bd4dda4aefcf45b',
+  'humanspec-coach': '347e6e0eb0cf8530d53a911b3f940ad0135e92ea7abe3412fcc01b2c3135dc09',
+  'humanspec-verify': '467f716803f09fdfd145e749f8bd1e5cd540ab6a5a091c4b91390003369e1c27',
+  'humanspec-archive': '940b312b3fc3a242c42b049e38c6c578d8a97228db0178bd286fe219161ba645',
+  'humanspec-explore': '3305947949872ffb12bbf3ad10bb3eff0c819ff563880f93a4792ee3fa5050ec',
 };
 
 // Intentionally excludes getFeedbackSkillTemplate: this list only models templates
@@ -94,6 +129,13 @@ const GENERATED_SKILL_FACTORIES: Array<[string, () => SkillTemplate]> = [
   ['openspec-onboard', getOnboardSkillTemplate],
   ['openspec-propose', getOpsxProposeSkillTemplate],
   ['openspec-update-change', getUpdateChangeSkillTemplate],
+  ['humanspec-init', getHumanspecInitSkillTemplate],
+  ['humanspec-next', getHumanspecNextSkillTemplate],
+  ['humanspec-propose', getHumanspecProposeSkillTemplate],
+  ['humanspec-coach', getHumanspecCoachSkillTemplate],
+  ['humanspec-verify', getHumanspecVerifySkillTemplate],
+  ['humanspec-archive', getHumanspecArchiveSkillTemplate],
+  ['humanspec-explore', getHumanspecExploreSkillTemplate],
 ];
 
 function stableStringify(value: unknown): string {
@@ -144,6 +186,20 @@ describe('skill templates split parity', () => {
       getFeedbackSkillTemplate,
       getUpdateChangeSkillTemplate,
       getOpsxUpdateCommandTemplate,
+      getHumanspecInitSkillTemplate,
+      getHumanspecInitCommandTemplate,
+      getHumanspecNextSkillTemplate,
+      getHumanspecNextCommandTemplate,
+      getHumanspecProposeSkillTemplate,
+      getHumanspecProposeCommandTemplate,
+      getHumanspecCoachSkillTemplate,
+      getHumanspecCoachCommandTemplate,
+      getHumanspecVerifySkillTemplate,
+      getHumanspecVerifyCommandTemplate,
+      getHumanspecArchiveSkillTemplate,
+      getHumanspecArchiveCommandTemplate,
+      getHumanspecExploreSkillTemplate,
+      getHumanspecExploreCommandTemplate,
     };
 
     const actualHashes = Object.fromEntries(

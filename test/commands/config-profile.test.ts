@@ -199,7 +199,7 @@ describe('config profile interactive flow', () => {
 
   it('workflows-only action should not invoke delivery prompt', async () => {
     const { saveGlobalConfig, getGlobalConfig } = await import('../../src/core/global-config.js');
-    const { ALL_WORKFLOWS } = await import('../../src/core/profiles.js');
+    const { REGISTERED_WORKFLOWS } = await import('../../src/core/profiles.js');
     const { select, checkbox } = await getPromptMocks();
 
     saveGlobalConfig({ featureFlags: {}, profile: 'core', delivery: 'both', workflows: ['propose', 'explore', 'apply', 'update', 'sync', 'archive'] });
@@ -211,7 +211,7 @@ describe('config profile interactive flow', () => {
     expect(select).toHaveBeenCalledTimes(1);
     expect(checkbox).toHaveBeenCalledTimes(1);
     const checkboxCall = checkbox.mock.calls[0][0];
-    expect(checkboxCall.pageSize).toBe(ALL_WORKFLOWS.length);
+    expect(checkboxCall.pageSize).toBe(REGISTERED_WORKFLOWS.length);
     expect(checkboxCall.theme).toEqual({
       icon: {
         checked: '[x]',
@@ -447,3 +447,4 @@ describe('config profile interactive flow', () => {
     expect(confirm).not.toHaveBeenCalled();
   });
 });
+

@@ -223,4 +223,50 @@ describe('human-learning built-in schema', () => {
       code: 'ENOENT',
     });
   });
+
+  it('keeps the internal apply protocol available in a humanspec-profile project (no public apply)', async () => {
+    // A HumanSpec project declares `profile: humanspec` and therefore never
+    // receives a user-invocable apply workflow. The internal
+    // `openspec instructions apply` protocol must remain available so coach,
+    // next, verify, and archive can reuse structured context and task
+    // progress (humanspec-workflow-profile spec: internal apply protocol).
+    await fs.writeFile(
+      path.join(projectRoot, 'openspec', 'config.yaml'),
+      'schema: human-learning\nprofile: humanspec\n',
+      'utf-8'
+    );
+
+    const changeName = 'internal-apply-protocol';
+    const changeDir = await createLearningChange(changeName);
+    await fs.writeFile(
+      path.join(changeDir, 'proposal.md'),
+      '# Proposal\n\n## Why\nPractice a focused change.\n',
+      'utf-8'
+    );
+    const learningPath = path.join(changeDir, 'learning.md');
+    await fs.writeFile(
+      learningPath,
+      ['## 实践任务', '', '- [x] 1. First task done', '- [ ] 2. Second task pending', ''].join(
+        '\n'
+      )
+    );
+
+    const applyResult = await runCLI(
+      ['instructions', 'apply', '--change', changeName, '--json'],
+      { cwd: projectRoot }
+    );
+    expect(applyResult.exitCode, applyResult.stderr).toBe(0);
+    const apply = JSON.parse(applyResult.stdout);
+    expect(apply).toMatchObject({
+      schemaName: 'human-learning',
+      applyRequires: ['learning'],
+      state: 'ready',
+      progress: { total: 2, complete: 1, remaining: 1 },
+    });
+    expect(apply.tasks[0]).toMatchObject({ id: '1', done: true });
+    expect(apply.tasks[1]).toMatchObject({ id: '2', done: false });
+    // The schema's apply instruction still carries the human-implementation
+    // boundary even though no public apply workflow is installed.
+    expect(apply.instruction).toContain('human learner writes all application and test');
+  });
 });

@@ -270,14 +270,14 @@ describe('command-generation/invocation', () => {
           ...sampleContent,
           id: 'propose',
           namespace: 'humanspec',
-          body: 'Start with /humanspec:propose, then /humanspec:apply.',
+          body: 'Start with /humanspec:propose, then /humanspec:verify.',
         },
         adapter
       );
       expect(filePath).toBe(path.join('.claude', 'commands', 'humanspec', 'propose.md'));
       // Namespaced paths keep the colon form for their own family.
       expect(fileContent).toContain('/humanspec:propose');
-      expect(fileContent).toContain('/humanspec:apply');
+      expect(fileContent).toContain('/humanspec:verify');
     });
 
     it('projects /humanspec-propose for a flat adapter', () => {
@@ -287,13 +287,13 @@ describe('command-generation/invocation', () => {
           ...sampleContent,
           id: 'propose',
           namespace: 'humanspec',
-          body: 'Start with /humanspec:propose, then /humanspec:apply.',
+          body: 'Start with /humanspec:propose, then /humanspec:verify.',
         },
         adapter
       );
       expect(filePath).toBe(path.join('.cursor', 'commands', 'humanspec-propose.md'));
       expect(fileContent).toContain('/humanspec-propose');
-      expect(fileContent).toContain('/humanspec-apply');
+      expect(fileContent).toContain('/humanspec-verify');
       expect(fileContent).not.toContain('/humanspec:');
     });
 

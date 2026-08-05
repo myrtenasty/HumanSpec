@@ -19,3 +19,10 @@ export { getVerifyChangeSkillTemplate, getOpsxVerifyCommandTemplate } from './wo
 export { getOnboardSkillTemplate, getOpsxOnboardCommandTemplate } from './workflows/onboard.js';
 export { getOpsxProposeSkillTemplate, getOpsxProposeCommandTemplate } from './workflows/propose.js';
 export { getFeedbackSkillTemplate } from './workflows/feedback.js';
+export { getHumanspecInitSkillTemplate, getHumanspecInitCommandTemplate } from './workflows/humanspec-init.js';
+export { getHumanspecNextSkillTemplate, getHumanspecNextCommandTemplate } from './workflows/humanspec-next.js';
+export { getHumanspecProposeSkillTemplate, getHumanspecProposeCommandTemplate } from './workflows/humanspec-propose.js';
+export { getHumanspecCoachSkillTemplate, getHumanspecCoachCommandTemplate } from './workflows/humanspec-coach.js';
+export { getHumanspecVerifySkillTemplate, getHumanspecVerifyCommandTemplate } from './workflows/humanspec-verify.js';
+export { getHumanspecArchiveSkillTemplate, getHumanspecArchiveCommandTemplate } from './workflows/humanspec-archive.js';
+export { getHumanspecExploreSkillTemplate, getHumanspecExploreCommandTemplate } from './workflows/humanspec-explore.js';

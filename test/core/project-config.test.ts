@@ -6,6 +6,7 @@ import {
   loadOperationInputs,
   OPERATION_IDS,
   readProjectConfig,
+  resolveConfigFilePath,
   validateConfigRules,
   suggestSchemas,
 } from '../../src/core/project-config.js';
@@ -944,5 +945,152 @@ rules:
       expect(message).not.toContain('Did you mean');
       expect(message).toContain('Available schemas:');
     });
+  });
+});
+
+describe('project-config workflow profile fields', () => {
+  let tempDir: string;
+  let consoleWarnSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'openspec-test-profile-'));
+    consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+    consoleWarnSpy.mockRestore();
+  });
+
+  function writeConfig(content: string, fileName = 'config.yaml'): void {
+    const configDir = path.join(tempDir, 'openspec');
+    fs.mkdirSync(configDir, { recursive: true });
+    fs.writeFileSync(path.join(configDir, fileName), content);
+  }
+
+  it('parses a named project profile alongside every other field', () => {
+    writeConfig(`schema: human-learning
+profile: humanspec
+context: |
+  Tech stack: TypeScript
+store: my-store
+`);
+    const config = readProjectConfig(tempDir);
+    expect(config?.profile).toBe('humanspec');
+    expect(config?.schema).toBe('human-learning');
+    expect(config?.context).toContain('TypeScript');
+    expect(config?.store).toBe('my-store');
+    expect(consoleWarnSpy).not.toHaveBeenCalled();
+  });
+
+  it('parses a custom profile with an ordered registered workflow selection', () => {
+    writeConfig(`schema: spec-driven
+profile: custom
+workflows:
+  - humanspec-init
+  - humanspec-next
+  - propose
+`);
+    const config = readProjectConfig(tempDir);
+    expect(config?.profile).toBe('custom');
+    expect(config?.workflows).toEqual(['humanspec-init', 'humanspec-next', 'propose']);
+    expect(consoleWarnSpy).not.toHaveBeenCalled();
+  });
+
+  it('loads a valid profile from config.yml when config.yaml does not exist', () => {
+    writeConfig(`schema: human-learning
+profile: humanspec
+`, 'config.yml');
+    const config = readProjectConfig(tempDir);
+    expect(config?.profile).toBe('humanspec');
+    expect(config?.schema).toBe('human-learning');
+  });
+
+  it('warns about an invalid profile and omits the field while retaining siblings', () => {
+    writeConfig(`schema: spec-driven
+profile: apply
+rules:
+  proposal:
+    - Keep it small
+`);
+    const config = readProjectConfig(tempDir);
+    expect(config?.profile).toBeUndefined();
+    expect(config?.schema).toBe('spec-driven');
+    expect(config?.rules).toEqual({ proposal: ['Keep it small'] });
+    expect(consoleWarnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Invalid 'profile' field")
+    );
+  });
+
+  it('warns about a non-string profile value and omits the field', () => {
+    writeConfig(`schema: spec-driven
+profile:
+  - humanspec
+`);
+    const config = readProjectConfig(tempDir);
+    expect(config?.profile).toBeUndefined();
+    expect(config?.schema).toBe('spec-driven');
+    expect(consoleWarnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Invalid 'profile' field")
+    );
+  });
+
+  it('retains valid registered workflow IDs in first-declared order and warns per invalid category', () => {
+    writeConfig(`schema: spec-driven
+profile: custom
+workflows:
+  - humanspec-init
+  - 123
+  - ""
+  - humanspec-propose
+  - humanspec-init
+  - not-a-workflow
+  - humanspec-verify
+`);
+    const config = readProjectConfig(tempDir);
+    expect(config?.workflows).toEqual([
+      'humanspec-init',
+      'humanspec-propose',
+      'humanspec-verify',
+    ]);
+    const warnings = consoleWarnSpy.mock.calls.map((call) => String(call[0]));
+    expect(warnings.some((w) => w.includes('not strings'))).toBe(true);
+    expect(warnings.some((w) => w.includes('empty strings'))).toBe(true);
+    expect(warnings.some((w) => w.includes('duplicates'))).toBe(true);
+    expect(warnings.some((w) => w.includes('not registered workflow IDs'))).toBe(true);
+  });
+
+  it('warns when workflows is not an array', () => {
+    writeConfig(`schema: spec-driven
+profile: custom
+workflows: humanspec-init
+`);
+    const config = readProjectConfig(tempDir);
+    expect(config?.workflows).toBeUndefined();
+    expect(config?.profile).toBe('custom');
+    expect(consoleWarnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Invalid 'workflows' field")
+    );
+  });
+
+  it('does not warn when the profile field is absent', () => {
+    writeConfig(`schema: spec-driven
+`);
+    const config = readProjectConfig(tempDir);
+    expect(config?.profile).toBeUndefined();
+    expect(config?.schema).toBe('spec-driven');
+    expect(consoleWarnSpy).not.toHaveBeenCalled();
+  });
+
+  it('resolves profile config through the platform-aware path resolver (Windows-style layout)', () => {
+    // Simulates the cross-platform contract: the resolver probes
+    // openspec/config.yaml then openspec/config.yml via path.join, so a
+    // Windows checkout finds its config.yml the same way macOS/Linux do.
+    writeConfig(`schema: human-learning
+profile: humanspec
+`, 'config.yml');
+    expect(resolveConfigFilePath(tempDir)).toBe(path.join(tempDir, 'openspec', 'config.yml'));
+    const config = readProjectConfig(tempDir);
+    expect(config?.profile).toBe('humanspec');
   });
 });

@@ -597,8 +597,8 @@ describe('InitCommand', () => {
       await fs.mkdir(managedDir, { recursive: true });
       await fs.writeFile(path.join(managedDir, 'explore.md'), '# managed');
       await fs.writeFile(path.join(managedDir, 'propose.md'), '# managed');
-      await fs.mkdir(path.join(commandsDir, 'humanspec'), { recursive: true });
-      await fs.writeFile(path.join(commandsDir, 'humanspec', 'propose.md'), '# humanspec');
+      await fs.mkdir(path.join(commandsDir, 'mycompany'), { recursive: true });
+      await fs.writeFile(path.join(commandsDir, 'mycompany', 'propose.md'), '# mycompany');
       await fs.writeFile(path.join(managedDir, 'user-apply.md'), '# user');
       await fs.writeFile(path.join(managedDir, 'README.md'), '# readme');
 
@@ -606,7 +606,7 @@ describe('InitCommand', () => {
 
       expect(await fileExists(path.join(managedDir, 'explore.md'))).toBe(false);
       expect(await fileExists(path.join(managedDir, 'propose.md'))).toBe(false);
-      expect(await fileExists(path.join(commandsDir, 'humanspec', 'propose.md'))).toBe(true);
+      expect(await fileExists(path.join(commandsDir, 'mycompany', 'propose.md'))).toBe(true);
       expect(await fileExists(path.join(managedDir, 'user-apply.md'))).toBe(true);
       expect(await fileExists(path.join(managedDir, 'README.md'))).toBe(true);
     });
@@ -1406,3 +1406,158 @@ async function directoryExists(dirPath: string): Promise<boolean> {
     return false;
   }
 }
+describe('InitCommand - humanspec profile', () => {
+  let testDir: string;
+  let configTempDir: string;
+  let originalEnv: NodeJS.ProcessEnv;
+
+  beforeEach(async () => {
+    testDir = await fs.mkdtemp(path.join(os.tmpdir(), 'openspec-init-humanspec-test-'));
+    originalEnv = { ...process.env };
+    configTempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'openspec-config-hs-test-'));
+    process.env.XDG_CONFIG_HOME = configTempDir;
+    process.env.CODEX_HOME = path.join(testDir, 'codex-home');
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    confirmMock.mockReset();
+    confirmMock.mockResolvedValue(true);
+    showWelcomeScreenMock.mockClear();
+    searchableMultiSelectMock.mockReset();
+  });
+
+  afterEach(async () => {
+    process.env = originalEnv;
+    await fs.rm(testDir, { recursive: true, force: true });
+    await fs.rm(configTempDir, { recursive: true, force: true });
+    vi.restoreAllMocks();
+  });
+
+  const HUMANSPEC_SKILLS = [
+    'humanspec-init',
+    'humanspec-next',
+    'humanspec-propose',
+    'humanspec-coach',
+    'humanspec-verify',
+    'humanspec-archive',
+    'humanspec-explore',
+  ];
+
+  it('generates exactly the seven HumanSpec skills and commands and no apply artifacts', async () => {
+    saveGlobalConfig({ featureFlags: {}, profile: 'core', delivery: 'both' });
+    const initCommand = new InitCommand({ tools: 'claude', force: true, profile: 'humanspec' });
+    await initCommand.execute(testDir);
+
+    for (const skill of HUMANSPEC_SKILLS) {
+      const skillFile = path.join(testDir, '.claude', 'skills', skill, 'SKILL.md');
+      expect(await fileExists(skillFile), skill).toBe(true);
+    }
+    for (const action of ['init', 'next', 'propose', 'coach', 'verify', 'archive', 'explore']) {
+      const commandFile = path.join(testDir, '.claude', 'commands', 'humanspec', `${action}.md`);
+      expect(await fileExists(commandFile), action).toBe(true);
+    }
+
+    // No OpenSpec apply skill and no opsx command files.
+    expect(await fileExists(path.join(testDir, '.claude', 'skills', 'openspec-apply-change', 'SKILL.md'))).toBe(false);
+    expect(await fileExists(path.join(testDir, '.claude', 'commands', 'opsx', 'apply.md'))).toBe(false);
+
+    // Config persists the resolved named profile.
+    const configContent = await fs.readFile(path.join(testDir, 'openspec', 'config.yaml'), 'utf-8');
+    expect(configContent).toContain('profile: humanspec');
+  });
+
+  it('keeps core compatibility: --profile core generates core artifacts and no humanspec dirs', async () => {
+    saveGlobalConfig({ featureFlags: {}, profile: 'humanspec', delivery: 'both' });
+    const initCommand = new InitCommand({ tools: 'claude', force: true, profile: 'core' });
+    await initCommand.execute(testDir);
+
+    expect(await fileExists(path.join(testDir, '.claude', 'skills', 'openspec-propose', 'SKILL.md'))).toBe(true);
+    expect(await fileExists(path.join(testDir, '.claude', 'skills', 'openspec-apply-change', 'SKILL.md'))).toBe(true);
+    expect(await fileExists(path.join(testDir, '.claude', 'skills', 'humanspec-init', 'SKILL.md'))).toBe(false);
+    expect(await fileExists(path.join(testDir, '.claude', 'commands', 'humanspec', 'propose.md'))).toBe(false);
+    const configContent = await fs.readFile(path.join(testDir, 'openspec', 'config.yaml'), 'utf-8');
+    expect(configContent).toContain('profile: core');
+  });
+
+  it('project config profile wins over the global profile during extend-mode init', async () => {
+    // Global says core; the project config says humanspec.
+    saveGlobalConfig({ featureFlags: {}, profile: 'core', delivery: 'both' });
+    await fs.mkdir(path.join(testDir, 'openspec'), { recursive: true });
+    await fs.writeFile(
+      path.join(testDir, 'openspec', 'config.yaml'),
+      'schema: human-learning\nprofile: humanspec\n',
+      'utf-8'
+    );
+
+    const initCommand = new InitCommand({ tools: 'claude', force: true });
+    await initCommand.execute(testDir);
+
+    expect(await fileExists(path.join(testDir, '.claude', 'skills', 'humanspec-init', 'SKILL.md'))).toBe(true);
+    expect(await fileExists(path.join(testDir, '.claude', 'skills', 'openspec-apply-change', 'SKILL.md'))).toBe(false);
+  });
+
+  it('extend mode with explicit profile updates only profile keys and preserves comments and extension', async () => {
+    saveGlobalConfig({ featureFlags: {}, profile: 'core', delivery: 'both' });
+    await fs.mkdir(path.join(testDir, 'openspec'), { recursive: true });
+    const configPath = path.join(testDir, 'openspec', 'config.yml');
+    const original = `# My project config\nschema: spec-driven\ncontext: |\n  Tech stack: Rust\nrules:\n  proposal:\n    - Keep it small\n`;
+    await fs.writeFile(configPath, original, 'utf-8');
+
+    const initCommand = new InitCommand({ tools: 'claude', force: true, profile: 'humanspec' });
+    await initCommand.execute(testDir);
+
+    const updated = await fs.readFile(configPath, 'utf-8');
+    expect(updated).toContain('# My project config');
+    expect(updated).toContain('schema: spec-driven');
+    expect(updated).toContain('Tech stack: Rust');
+    expect(updated).toContain('Keep it small');
+    expect(updated).toContain('profile: humanspec');
+    // Extension retained, no config.yaml twin created.
+    expect(await fileExists(path.join(testDir, 'openspec', 'config.yaml'))).toBe(false);
+    expect(await fileExists(configPath)).toBe(true);
+  });
+
+  it('extend mode with a named preset override drops a stale custom workflows key', async () => {
+    saveGlobalConfig({ featureFlags: {}, profile: 'core', delivery: 'both' });
+    await fs.mkdir(path.join(testDir, 'openspec'), { recursive: true });
+    const configPath = path.join(testDir, 'openspec', 'config.yaml');
+    const original = `# My project config\nschema: spec-driven\nprofile: custom\nworkflows:\n  - propose\n  - apply\ncontext: |\n  Tech stack: Rust\n`;
+    await fs.writeFile(configPath, original, 'utf-8');
+
+    const initCommand = new InitCommand({ tools: 'claude', force: true, profile: 'humanspec' });
+    await initCommand.execute(testDir);
+
+    const updated = await fs.readFile(configPath, 'utf-8');
+    expect(updated).toContain('# My project config');
+    expect(updated).toContain('schema: spec-driven');
+    expect(updated).toContain('Tech stack: Rust');
+    expect(updated).toContain('profile: humanspec');
+    // The stale custom selection is removed: a named preset determines
+    // membership on its own, so a leftover workflows list would mislead.
+    expect(updated).not.toContain('workflows:');
+    expect(updated).not.toContain('- apply');
+  });
+
+  it('extend mode without an explicit profile preserves the existing config byte-for-byte', async () => {
+    saveGlobalConfig({ featureFlags: {}, profile: 'core', delivery: 'both' });
+    await fs.mkdir(path.join(testDir, 'openspec'), { recursive: true });
+    const configPath = path.join(testDir, 'openspec', 'config.yaml');
+    const original = '# untouched\nschema: spec-driven\ncontext: |\n  Keep me\n';
+    await fs.writeFile(configPath, original, 'utf-8');
+
+    const initCommand = new InitCommand({ tools: 'claude', force: true });
+    await initCommand.execute(testDir);
+
+    const after = await fs.readFile(configPath, 'utf-8');
+    expect(after).toBe(original);
+  });
+
+  it('fails before writing any artifacts when the profile override is invalid', async () => {
+    saveGlobalConfig({ featureFlags: {}, profile: 'core', delivery: 'both' });
+    const initCommand = new InitCommand({ tools: 'claude', force: true, profile: 'bogus' });
+
+    await expect(initCommand.execute(testDir)).rejects.toThrow(/Invalid profile "bogus"/);
+
+    expect(await fileExists(path.join(testDir, 'openspec', 'config.yaml'))).toBe(false);
+    expect(await fileExists(path.join(testDir, '.claude', 'skills', 'openspec-propose', 'SKILL.md'))).toBe(false);
+    expect(await fileExists(path.join(testDir, '.claude', 'commands', 'opsx', 'propose.md'))).toBe(false);
+  });
+});

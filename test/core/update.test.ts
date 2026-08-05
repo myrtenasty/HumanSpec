@@ -523,8 +523,8 @@ Old instructions content
       await fs.mkdir(managedDir, { recursive: true });
       await fs.writeFile(path.join(managedDir, 'explore.md'), '# managed');
       await fs.writeFile(path.join(managedDir, 'propose.md'), '# managed');
-      await fs.mkdir(path.join(commandsDir, 'humanspec'), { recursive: true });
-      await fs.writeFile(path.join(commandsDir, 'humanspec', 'propose.md'), '# humanspec');
+      await fs.mkdir(path.join(commandsDir, 'mycompany'), { recursive: true });
+      await fs.writeFile(path.join(commandsDir, 'mycompany', 'propose.md'), '# mycompany');
       await fs.writeFile(path.join(managedDir, 'user-apply.md'), '# user');
       await fs.writeFile(path.join(managedDir, 'README.md'), '# readme');
 
@@ -534,7 +534,7 @@ Old instructions content
       expect(await FileSystemUtils.fileExists(path.join(managedDir, 'explore.md'))).toBe(false);
       expect(await FileSystemUtils.fileExists(path.join(managedDir, 'propose.md'))).toBe(false);
       // ...while unregistered namespaces and user files are preserved.
-      expect(await FileSystemUtils.fileExists(path.join(commandsDir, 'humanspec', 'propose.md'))).toBe(true);
+      expect(await FileSystemUtils.fileExists(path.join(commandsDir, 'mycompany', 'propose.md'))).toBe(true);
       expect(await FileSystemUtils.fileExists(path.join(managedDir, 'user-apply.md'))).toBe(true);
       expect(await FileSystemUtils.fileExists(path.join(managedDir, 'README.md'))).toBe(true);
     });

@@ -14,6 +14,11 @@ import { SKILLS_DIR, stripVolatileFrontmatter } from '../../../scripts/skillssh-
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 
+// Mirrors scripts/generate-skillssh.mjs: both command families (opsx and
+// humanspec) are rewritten to their skill spellings for the skills.sh channel.
+const toSkillReferences = (text: string): string =>
+  transformToSkillReferences(transformToSkillReferences(text, 'humanspec'));
+
 // The committed `skills/<name>/SKILL.md` tree is the skills.sh distribution
 // (`npx skills add Fission-AI/OpenSpec`). It must match what the generator
 // would produce from the live templates; regenerate with `pnpm generate:skills`.
@@ -21,7 +26,7 @@ describe('skills.sh distribution parity', () => {
   it('keeps committed skills/ in sync with the workflow templates', () => {
     for (const { template, dirName } of getSkillTemplates()) {
       const expected = stripVolatileFrontmatter(
-        generateSkillContent(template, 'skills.sh', transformToSkillReferences)
+        generateSkillContent(template, 'skills.sh', toSkillReferences)
       );
       const committedPath = join(repoRoot, SKILLS_DIR, dirName, 'SKILL.md');
       const committed = readFileSync(committedPath, 'utf8');

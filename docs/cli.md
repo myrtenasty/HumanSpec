@@ -100,7 +100,7 @@ openspec init [path] [options]
 |--------|-------------|
 | `--tools <list>` | Configure AI tools non-interactively. Use `all`, `none`, or comma-separated list |
 | `--force` | Auto-cleanup legacy files without prompting |
-| `--profile <profile>` | Override global profile for this init run (`core` or `custom`) |
+| `--profile <profile>` | Override global profile for this init run (`core`, `humanspec`, or `custom`) |
 | `--no-animation` | Show a static welcome screen instead of the animated one |
 
 `--profile custom` uses whatever workflows are currently selected in global config (`openspec config profile`).
@@ -128,6 +128,9 @@ openspec init --tools all
 
 # Override profile for this run
 openspec init --profile core
+
+# Initialize a HumanSpec project (human-owned implementation workflows)
+openspec init --profile humanspec
 
 # Skip prompts and auto-cleanup legacy files
 openspec init --force
@@ -1135,6 +1138,9 @@ openspec config profile
 
 # Fast preset: switch workflows to core (keeps delivery mode)
 openspec config profile core
+
+# Fast preset: switch workflows to humanspec (keeps delivery mode)
+openspec config profile humanspec
 ```
 
 `openspec config profile` starts with a current-state summary, then lets you choose:
@@ -1147,6 +1153,43 @@ If you keep current settings, no changes are written and no update prompt is sho
 If there are no config changes but the current project files are out of sync with your global profile/delivery, OpenSpec will show a warning and suggest `openspec update`.
 Pressing `Ctrl+C` also cancels the flow cleanly (no stack trace) and exits with code `130`.
 In the workflow checklist, `[x]` means the workflow is selected in global config. To apply those selections to project files, run `openspec update` (or choose `Apply changes to this project now?` when prompted inside a project).
+
+**Project profile precedence:** a project can declare its own workflow profile in
+`openspec/config.yaml` (`profile: core|humanspec|custom`, plus `workflows:` for
+custom). The effective profile resolves in this order: explicit CLI override →
+project config → global config → `core` fallback. When a project declares its
+own profile, `openspec config profile` shows it in the summary, global profile
+changes do not change that project's workflow membership (only delivery changes
+still reach it), and the apply prompt is gated on the project's effective
+result.
+
+**The `humanspec` profile:** select it with `openspec config profile humanspec`,
+`openspec init --profile humanspec`, or `profile: humanspec` in
+`openspec/config.yaml`. It installs exactly seven workflows, in lifecycle order:
+
+| Workflow | Command | Responsibility |
+|----------|---------|----------------|
+| `humanspec-init` | `/humanspec:init` | Set up the project's HumanSpec practice (planning documents only) |
+| `humanspec-next` | `/humanspec:next` | Route to the next practice change (routing and guidance only) |
+| `humanspec-propose` | `/humanspec:propose` | Propose a practice change (change planning artifacts only) |
+| `humanspec-coach` | `/humanspec:coach` | Coach the learner with hints and diagnosis (read-only, no code writes) |
+| `humanspec-verify` | `/humanspec:verify` | Verify a practice change (review output and the reserved AI area of `learning.md` only) |
+| `humanspec-archive` | `/humanspec:archive` | Archive a completed practice change (specs, planning records, archive paths only) |
+| `humanspec-explore` | `/humanspec:explore` | Explore a problem before practicing (no implementation writes) |
+
+Depending on the tool, the same commands appear as `/humanspec:<action>`,
+`/humanspec-<action>`, or `@humanspec-<action>` (Amazon Q). Every HumanSpec
+workflow preserves human implementation ownership: the learner writes all
+application and test code; the AI only plans, explains, diagnoses, reviews,
+and hints within each workflow's declared write boundary.
+
+A HumanSpec project gets **no user-invocable `apply` workflow** — neither the
+OpenSpec `apply` nor a `humanspec-apply` is generated, and switching a project
+from `core` to `humanspec` removes the managed apply artifacts. The internal
+protocol stays available: `openspec instructions apply --change <name> --json`
+(and schema `apply.requires`/`apply.tracks` task tracking) remains unchanged,
+so HumanSpec workflows can read structured progress without exposing an AI
+implementation entry point.
 
 **Interactive examples:**
 

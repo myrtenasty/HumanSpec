@@ -32,12 +32,17 @@ const outDir = join(repoRoot, SKILLS_DIR);
 
 cleanSkillSubdirectories(outDir);
 
+// skills.sh installs SKILL.md files only — no commands exist in that
+// channel, so references must point at the skills themselves. Both command
+// families are rewritten: the OpenSpec opsx family to /openspec-*, and the
+// HumanSpec family to /humanspec-*.
+const toSkillReferences = (text) =>
+  transformToSkillReferences(transformToSkillReferences(text, 'humanspec'));
+
 let count = 0;
 for (const { template, dirName } of getSkillTemplates()) {
-  // skills.sh installs SKILL.md files only — no /opsx:* commands exist in
-  // that channel, so references must point at the skills themselves.
   const content = stripVolatileFrontmatter(
-    generateSkillContent(template, 'skills.sh', transformToSkillReferences)
+    generateSkillContent(template, 'skills.sh', toSkillReferences)
   );
   const skillDir = prepareSkillDirectory(outDir, dirName);
   writeFileSync(join(skillDir, 'SKILL.md'), content, 'utf8');

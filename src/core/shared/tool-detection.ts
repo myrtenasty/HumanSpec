@@ -10,10 +10,14 @@ import { AI_TOOLS } from '../config.js';
 import { CommandAdapterRegistry, generateCommands, DEFAULT_COMMAND_NAMESPACE } from '../command-generation/index.js';
 import { getCommandContents } from './skill-generation.js';
 import { getGlobalConfig } from '../global-config.js';
-import { getProfileWorkflows, ALL_WORKFLOWS } from '../profiles.js';
+import { getProfileWorkflows, isRegisteredWorkflow, REGISTERED_WORKFLOWS, type RegisteredWorkflowId } from '../profiles.js';
 
 /**
  * Names of skill directories created by openspec init.
+ *
+ * The seven humanspec-<action> entries are the HumanSpec profile's skill
+ * registrations; they stay in this explicit list until
+ * `unify-template-generation-pipeline` introduces a workflow manifest.
  */
 export const SKILL_NAMES = [
   'openspec-explore',
@@ -28,6 +32,13 @@ export const SKILL_NAMES = [
   'openspec-verify-change',
   'openspec-onboard',
   'openspec-propose',
+  'humanspec-init',
+  'humanspec-next',
+  'humanspec-propose',
+  'humanspec-coach',
+  'humanspec-verify',
+  'humanspec-archive',
+  'humanspec-explore',
 ] as const;
 
 export type SkillName = (typeof SKILL_NAMES)[number];
@@ -60,11 +71,31 @@ export type CommandId = (typeof COMMAND_IDS)[number];
  * namespace and ID appear here.
  */
 export interface ManagedCommandDescriptor {
-  /** Command family, e.g. `opsx`; future families such as `humanspec` register here. */
+  /** Command family, e.g. `opsx` or `humanspec`. */
   namespace: string;
-  /** Command action ID, matching a COMMAND_IDS entry. */
-  id: CommandId;
+  /** Command action ID, e.g. `apply` or `init`. */
+  id: string;
+  /**
+   * The workflow this command serves (e.g. `humanspec-propose`). Profile
+   * membership and deselection are decided by workflow ID, so cleanup and
+   * drift checks compare against this field rather than the command ID
+   * (a humanspec command's action ID may collide with an opsx one).
+   */
+  workflowId: RegisteredWorkflowId;
 }
+
+/**
+ * Action IDs of the HumanSpec command family, mirroring HUMANSPEC_WORKFLOWS.
+ */
+const HUMANSPEC_COMMAND_IDS = [
+  'init',
+  'next',
+  'propose',
+  'coach',
+  'verify',
+  'archive',
+  'explore',
+] as const;
 
 /**
  * Every command OpenSpec manages, as explicit namespace/ID descriptors.
@@ -73,10 +104,21 @@ export interface ManagedCommandDescriptor {
  * descriptors into the manifest without changing their shape or the paths
  * they generate.
  */
-export const MANAGED_COMMANDS: ManagedCommandDescriptor[] = COMMAND_IDS.map((id) => ({
-  namespace: DEFAULT_COMMAND_NAMESPACE,
-  id,
-}));
+export const MANAGED_COMMANDS: ManagedCommandDescriptor[] = [
+  ...COMMAND_IDS.map((id) => ({
+    namespace: DEFAULT_COMMAND_NAMESPACE,
+    id,
+    workflowId: id,
+  })),
+  // HumanSpec command registrations: the `humanspec` namespace with action
+  // IDs init, next, propose, coach, verify, archive, explore. Each maps to
+  // its humanSpec workflow ID so profile selection drives cleanup exactly.
+  ...HUMANSPEC_COMMAND_IDS.map((id) => ({
+    namespace: 'humanspec',
+    id,
+    workflowId: `humanspec-${id}` as RegisteredWorkflowId,
+  })),
+];
 
 /**
  * Status of skill configuration for a tool.
@@ -195,12 +237,13 @@ export function areCommandFilesUpToDate(
       const profile = globalCfg.profile ?? 'core';
       workflows = getProfileWorkflows(profile, globalCfg.workflows);
     } catch {
-      workflows = ALL_WORKFLOWS;
+      // Degraded fallback: every registered workflow (OpenSpec + HumanSpec).
+      workflows = REGISTERED_WORKFLOWS;
     }
   }
 
-  const knownWorkflows = workflows.filter((w): w is (typeof ALL_WORKFLOWS)[number] =>
-    (ALL_WORKFLOWS as readonly string[]).includes(w)
+  const knownWorkflows = workflows.filter((w): w is RegisteredWorkflowId =>
+    isRegisteredWorkflow(w)
   );
 
   const commandContents = getCommandContents(knownWorkflows);
@@ -228,7 +271,7 @@ export function areCommandFilesUpToDate(
   // Also check no extra command files exist for deselected workflows
   const desiredWorkflowSet = new Set(knownWorkflows);
   for (const descriptor of MANAGED_COMMANDS) {
-    if (desiredWorkflowSet.has(descriptor.id)) continue;
+    if (desiredWorkflowSet.has(descriptor.workflowId)) continue;
     const cmdPath = adapter.getFilePath(descriptor);
     const fullPath = path.isAbsolute(cmdPath) ? cmdPath : path.join(projectRoot, cmdPath);
     if (fs.existsSync(fullPath)) {

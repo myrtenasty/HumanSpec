@@ -368,3 +368,75 @@ describe('global-config', () => {
     });
   });
 });
+
+describe('global-config humanspec profile', () => {
+  let tempDir: string;
+  let originalEnv: NodeJS.ProcessEnv;
+  let consoleWarnSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'openspec-global-humanspec-test-'));
+    originalEnv = { ...process.env };
+    process.env.XDG_CONFIG_HOME = tempDir;
+    consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+    fs.rmSync(tempDir, { recursive: true, force: true });
+    consoleWarnSpy.mockRestore();
+  });
+
+  function writeGlobalConfig(config: Record<string, unknown>): void {
+    const configDir = path.join(tempDir, 'openspec');
+    fs.mkdirSync(configDir, { recursive: true });
+    fs.writeFileSync(path.join(configDir, GLOBAL_CONFIG_FILE_NAME), JSON.stringify(config));
+  }
+
+  it('loads the humanspec profile preset successfully', () => {
+    writeGlobalConfig({
+      featureFlags: {},
+      profile: 'humanspec',
+      delivery: 'skills',
+      workflows: ['humanspec-init', 'humanspec-next', 'humanspec-propose', 'humanspec-coach', 'humanspec-verify', 'humanspec-archive', 'humanspec-explore'],
+    });
+    const config = getGlobalConfig();
+    expect(config.profile).toBe('humanspec');
+    expect(config.delivery).toBe('skills');
+    expect(config.workflows).toHaveLength(7);
+    expect(consoleWarnSpy).not.toHaveBeenCalled();
+  });
+
+  it('keeps core and custom profiles valid', () => {
+    writeGlobalConfig({ profile: 'core', delivery: 'both' });
+    expect(getGlobalConfig().profile).toBe('core');
+
+    writeGlobalConfig({ profile: 'custom', delivery: 'both', workflows: ['propose'] });
+    expect(getGlobalConfig().profile).toBe('custom');
+    expect(getGlobalConfig().workflows).toEqual(['propose']);
+  });
+
+  it('supplies the core default for an older config without a profile field and preserves unrelated fields', () => {
+    writeGlobalConfig({ featureFlags: { flag: true }, delivery: 'commands', defaultStore: 'x' });
+    const config = getGlobalConfig();
+    expect(config.profile).toBe('core');
+    expect(config.delivery).toBe('commands');
+    expect(config.featureFlags).toEqual({ flag: true });
+    expect(config.defaultStore).toBe('x');
+  });
+
+  it('warns and falls back to core for an invalid profile while preserving unrelated fields', () => {
+    writeGlobalConfig({ featureFlags: { flag: true }, profile: 'apply', delivery: 'skills' });
+    const config = getGlobalConfig();
+    expect(config.profile).toBe('core');
+    expect(config.delivery).toBe('skills');
+    expect(config.featureFlags).toEqual({ flag: true });
+    expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining('Invalid profile'));
+  });
+
+  it('warns and falls back to core for a non-string profile value', () => {
+    writeGlobalConfig({ profile: 42, delivery: 'both' });
+    expect(getGlobalConfig().profile).toBe('core');
+    expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining('Invalid profile'));
+  });
+});

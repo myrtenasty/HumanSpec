@@ -27,8 +27,8 @@ describe('tool-detection', () => {
   });
 
   describe('SKILL_NAMES', () => {
-    it('should contain all skill names matching COMMAND_IDS', () => {
-      expect(SKILL_NAMES).toHaveLength(12);
+    it('should contain all skill names matching COMMAND_IDS plus the seven humanspec names', () => {
+      expect(SKILL_NAMES).toHaveLength(12 + 7);
       expect(SKILL_NAMES).toContain('openspec-explore');
       expect(SKILL_NAMES).toContain('openspec-new-change');
       expect(SKILL_NAMES).toContain('openspec-continue-change');
@@ -41,6 +41,13 @@ describe('tool-detection', () => {
       expect(SKILL_NAMES).toContain('openspec-verify-change');
       expect(SKILL_NAMES).toContain('openspec-onboard');
       expect(SKILL_NAMES).toContain('openspec-propose');
+      expect(SKILL_NAMES).toContain('humanspec-init');
+      expect(SKILL_NAMES).toContain('humanspec-next');
+      expect(SKILL_NAMES).toContain('humanspec-propose');
+      expect(SKILL_NAMES).toContain('humanspec-coach');
+      expect(SKILL_NAMES).toContain('humanspec-verify');
+      expect(SKILL_NAMES).toContain('humanspec-archive');
+      expect(SKILL_NAMES).toContain('humanspec-explore');
     });
   });
 
@@ -474,12 +481,12 @@ Content here
     });
 
     it('should not count a command file in an unregistered namespace as configured', async () => {
-      // A humanspec-family command file is not enumerated by the managed
-      // descriptor list, so detection must ignore it: only registered
+      // A command file in an unregistered family is not enumerated by the
+      // managed descriptor list, so detection must ignore it: only registered
       // namespace/ID paths mark a tool as configured.
-      const humanspecDir = path.join(testDir, '.claude', 'commands', 'humanspec');
-      await fs.mkdir(humanspecDir, { recursive: true });
-      await fs.writeFile(path.join(humanspecDir, 'propose.md'), '# humanspec propose\n');
+      const unregisteredDir = path.join(testDir, '.claude', 'commands', 'mycompany');
+      await fs.mkdir(unregisteredDir, { recursive: true });
+      await fs.writeFile(path.join(unregisteredDir, 'propose.md'), '# mycompany propose\n');
 
       expect(getConfiguredTools(testDir)).toEqual([]);
     });

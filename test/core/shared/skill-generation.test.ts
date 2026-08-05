@@ -8,9 +8,9 @@ import {
 
 describe('skill-generation', () => {
   describe('getSkillTemplates', () => {
-    it('should return all 12 skill templates', () => {
+    it('should return all 19 skill templates (12 OpenSpec + 7 HumanSpec)', () => {
       const templates = getSkillTemplates();
-      expect(templates).toHaveLength(12);
+      expect(templates).toHaveLength(19);
     });
 
     it('should have unique directory names', () => {
@@ -36,6 +36,13 @@ describe('skill-generation', () => {
       expect(dirNames).toContain('openspec-verify-change');
       expect(dirNames).toContain('openspec-onboard');
       expect(dirNames).toContain('openspec-propose');
+      expect(dirNames).toContain('humanspec-init');
+      expect(dirNames).toContain('humanspec-next');
+      expect(dirNames).toContain('humanspec-propose');
+      expect(dirNames).toContain('humanspec-coach');
+      expect(dirNames).toContain('humanspec-verify');
+      expect(dirNames).toContain('humanspec-archive');
+      expect(dirNames).toContain('humanspec-explore');
     });
 
     it('should have valid template structure', () => {
@@ -89,16 +96,16 @@ describe('skill-generation', () => {
   });
 
   describe('getCommandTemplates', () => {
-    it('should return all 12 command templates', () => {
+    it('should return all 19 command templates (12 OpenSpec + 7 HumanSpec)', () => {
       const templates = getCommandTemplates();
-      expect(templates).toHaveLength(12);
+      expect(templates).toHaveLength(19);
     });
 
-    it('should have unique IDs', () => {
+    it('should have unique workflow IDs', () => {
       const templates = getCommandTemplates();
-      const ids = templates.map(t => t.id);
-      const uniqueIds = new Set(ids);
-      expect(uniqueIds.size).toBe(templates.length);
+      const workflowIds = templates.map(t => t.workflowId);
+      const uniqueWorkflowIds = new Set(workflowIds);
+      expect(uniqueWorkflowIds.size).toBe(templates.length);
     });
 
     it('should include all expected commands', () => {
@@ -117,6 +124,24 @@ describe('skill-generation', () => {
       expect(ids).toContain('verify');
       expect(ids).toContain('onboard');
       expect(ids).toContain('propose');
+      // HumanSpec command actions (namespace humanspec)
+      expect(ids).toContain('init');
+      expect(ids).toContain('next');
+      expect(ids).toContain('coach');
+    });
+
+    it('should mark HumanSpec command templates with the humanspec namespace', () => {
+      const templates = getCommandTemplates();
+      const humanSpecEntries = templates.filter((t) => t.namespace === 'humanspec');
+      expect(humanSpecEntries.map((t) => t.workflowId).sort()).toEqual([
+        'humanspec-archive',
+        'humanspec-coach',
+        'humanspec-explore',
+        'humanspec-init',
+        'humanspec-next',
+        'humanspec-propose',
+        'humanspec-verify',
+      ]);
     });
 
     it('should filter by workflow IDs when provided', () => {
@@ -144,9 +169,9 @@ describe('skill-generation', () => {
   });
 
   describe('getCommandContents', () => {
-    it('should return all 12 command contents', () => {
+    it('should return all 19 command contents', () => {
       const contents = getCommandContents();
-      expect(contents).toHaveLength(12);
+      expect(contents).toHaveLength(19);
     });
 
     it('should have valid content structure', () => {
@@ -160,14 +185,17 @@ describe('skill-generation', () => {
       }
     });
 
-    it('should have matching IDs with command templates', () => {
+    it('should have matching command IDs with command templates', () => {
       const templates = getCommandTemplates();
       const contents = getCommandContents();
 
-      const templateIds = templates.map(t => t.id).sort();
-      const contentIds = contents.map(c => c.id).sort();
-
-      expect(contentIds).toEqual(templateIds);
+      // Command action IDs may collide across namespaces (propose, verify,
+      // archive, explore exist in both opsx and humanspec), so key the
+      // comparison by namespace + action ID rather than raw IDs.
+      const templateKeyed = templates.map((t) => `${t.namespace ?? 'opsx'}:${t.id}`).sort();
+      const contentKeyed = contents.map((c) => `${c.namespace ?? 'opsx'}:${c.id}`).sort();
+      expect(contentKeyed).toEqual(templateKeyed);
+      expect(contents).toHaveLength(templates.length);
     });
 
     it('should filter by workflow IDs when provided', () => {

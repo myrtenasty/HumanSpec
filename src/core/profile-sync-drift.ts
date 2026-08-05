@@ -2,7 +2,7 @@ import path from 'path';
 import * as fs from 'fs';
 import { AI_TOOLS } from './config.js';
 import type { Delivery } from './global-config.js';
-import { ALL_WORKFLOWS } from './profiles.js';
+import { ALL_WORKFLOWS, REGISTERED_WORKFLOWS, isRegisteredWorkflow, type RegisteredWorkflowId } from './profiles.js';
 import { CommandAdapterRegistry } from './command-generation/index.js';
 import { MANAGED_COMMANDS, getConfiguredTools } from './shared/index.js';
 import {
@@ -12,10 +12,14 @@ import {
   shouldRemoveSkillsForTool,
 } from './command-surface.js';
 
-type WorkflowId = (typeof ALL_WORKFLOWS)[number];
+type WorkflowId = RegisteredWorkflowId;
 
 /**
  * Maps workflow IDs to their skill directory names.
+ *
+ * The seven humanspec-<action> entries are the HumanSpec profile's skill
+ * registrations; they stay in this explicit list until
+ * `unify-template-generation-pipeline` introduces a workflow manifest.
  */
 export const WORKFLOW_TO_SKILL_DIR: Record<WorkflowId, string> = {
   'explore': 'openspec-explore',
@@ -30,13 +34,17 @@ export const WORKFLOW_TO_SKILL_DIR: Record<WorkflowId, string> = {
   'verify': 'openspec-verify-change',
   'onboard': 'openspec-onboard',
   'propose': 'openspec-propose',
+  'humanspec-init': 'humanspec-init',
+  'humanspec-next': 'humanspec-next',
+  'humanspec-propose': 'humanspec-propose',
+  'humanspec-coach': 'humanspec-coach',
+  'humanspec-verify': 'humanspec-verify',
+  'humanspec-archive': 'humanspec-archive',
+  'humanspec-explore': 'humanspec-explore',
 };
 
 function toKnownWorkflows(workflows: readonly string[]): WorkflowId[] {
-  return workflows.filter(
-    (workflow): workflow is WorkflowId =>
-      (ALL_WORKFLOWS as readonly string[]).includes(workflow)
-  );
+  return workflows.filter(isRegisteredWorkflow);
 }
 
 /**
@@ -80,7 +88,7 @@ export function hasToolProfileOrDeliveryDrift(
     }
 
     // Deselecting workflows in a profile should trigger sync.
-    for (const workflow of ALL_WORKFLOWS) {
+    for (const workflow of REGISTERED_WORKFLOWS) {
       if (desiredWorkflowSet.has(workflow)) continue;
       const dirName = WORKFLOW_TO_SKILL_DIR[workflow];
       const skillDir = path.join(skillsDir, dirName);
@@ -89,7 +97,7 @@ export function hasToolProfileOrDeliveryDrift(
       }
     }
   } else if (shouldRemoveSkillsForTool(toolId, delivery)) {
-    for (const workflow of ALL_WORKFLOWS) {
+    for (const workflow of REGISTERED_WORKFLOWS) {
       const dirName = WORKFLOW_TO_SKILL_DIR[workflow];
       const skillDir = path.join(skillsDir, dirName);
       if (fs.existsSync(skillDir)) {
@@ -111,7 +119,7 @@ export function hasToolProfileOrDeliveryDrift(
 
     // Deselecting workflows in a profile should trigger sync.
     for (const descriptor of MANAGED_COMMANDS) {
-      if (desiredWorkflowSet.has(descriptor.id)) continue;
+      if (desiredWorkflowSet.has(descriptor.workflowId)) continue;
       const cmdPath = adapter.getFilePath(descriptor);
       const fullPath = path.isAbsolute(cmdPath) ? cmdPath : path.join(projectPath, cmdPath);
       if (fs.existsSync(fullPath)) {
@@ -158,7 +166,7 @@ function getInstalledWorkflowsForTool(
   const skillsDir = path.join(projectPath, tool.skillsDir, 'skills');
 
   if (options.includeSkills) {
-    for (const workflow of ALL_WORKFLOWS) {
+    for (const workflow of REGISTERED_WORKFLOWS) {
       const dirName = WORKFLOW_TO_SKILL_DIR[workflow];
       const skillFile = path.join(skillsDir, dirName, 'SKILL.md');
       if (fs.existsSync(skillFile)) {
@@ -174,7 +182,7 @@ function getInstalledWorkflowsForTool(
         const cmdPath = adapter.getFilePath(descriptor);
         const fullPath = path.isAbsolute(cmdPath) ? cmdPath : path.join(projectPath, cmdPath);
         if (fs.existsSync(fullPath)) {
-          installed.add(descriptor.id);
+          installed.add(descriptor.workflowId);
         }
       }
     }

@@ -276,7 +276,29 @@ delta specs 继续描述可观察行为和验证场景，以便：
 
 独立 sync、bulk archive 和完整 OpenSpec artifact authoring 可以作为高级或兼容 profile 保留，但不出现在初学者默认入口中。
 
-### 7.3 Coach 的提示等级
+### 7.3 已落地的命名 profile（`add-humanspec-workflow-profile`）
+
+`openspec init --profile humanspec` / `openspec config profile humanspec` 安装
+七个 `humanspec-<action>` workflow（init、next、propose、coach、verify、
+archive、explore），生成身份固定：
+
+- skill：`humanspec-<action>/SKILL.md`
+- 命令：`/humanspec:<action>`（目录命名空间适配器）、`/humanspec-<action>`
+  （平铺适配器）、`@humanspec-<action>`（Amazon Q）
+
+项目可以在 `openspec/config.yaml` 声明 `profile: humanspec`（及自定义时的
+`workflows:`），有效 profile 按 CLI 覆盖 → 项目配置 → 全局配置 → `core`
+兜底的顺序解析。切换 profile 时只按显式注册路径增删托管 artifacts，用户文件
+不受影响。`openspec instructions apply --change <name> --json` 作为内部协议
+始终可用（coach/verify/archive 复用其结构化上下文与任务进度），但 HumanSpec
+项目不获得任何用户可调用的 apply workflow。
+
+当前注册点（profiles、skill/command 模板表、`SKILL_NAMES`、
+`MANAGED_COMMANDS`、检测、onboarding、drift、cleanup）由严格 parity 测试
+保持同步；`unify-template-generation-pipeline` 落地后这些条目迁入统一
+manifest，生成路径与 profile 成员关系不变。
+
+### 7.4 Coach 的提示等级
 
 coach 应优先帮助用户继续思考，而不是快速给出答案：
 

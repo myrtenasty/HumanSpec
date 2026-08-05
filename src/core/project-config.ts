@@ -2,6 +2,7 @@ import { existsSync, readFileSync, statSync } from 'fs';
 import path from 'path';
 import { parse as parseYaml } from 'yaml';
 import { z } from 'zod';
+import { isRegisteredWorkflow } from './profiles.js';
 
 export const OPERATION_IDS = ['apply', 'archive'] as const;
 export type OperationId = (typeof OPERATION_IDS)[number];
@@ -42,6 +43,23 @@ export const ProjectConfigSchema = z.object({
     .string()
     .optional()
     .describe('Project context injected into all artifact instructions'),
+
+  // Optional: the named workflow profile for this project (core, humanspec,
+  // or custom). Persisted by init so init and update resolve the same
+  // effective workflow set for the project even when the machine-level
+  // global config changes later.
+  profile: z
+    .enum(['core', 'humanspec', 'custom'])
+    .optional()
+    .describe('Named workflow profile: core, humanspec, or custom'),
+
+  // Optional: explicit workflow selection for the custom profile. Consulted
+  // only when profile is custom; entries must be explicitly registered
+  // workflow IDs (see REGISTERED_WORKFLOWS).
+  workflows: z
+    .array(z.string())
+    .optional()
+    .describe('Explicit registered workflow IDs for the custom profile'),
 
   // Optional: per-artifact rules (additive to schema's built-in guidance)
   rules: z
@@ -339,6 +357,28 @@ export function readProjectConfig(projectRoot: string): ProjectConfig | null {
       }
     }
 
+    // Parse named profile field: a known profile name, or dropped with a
+    // warning while every other independently valid field is retained.
+    if (raw.profile !== undefined) {
+      if (typeof raw.profile === 'string' && isProfileName(raw.profile)) {
+        config.profile = raw.profile;
+      } else {
+        console.warn(
+          `Invalid 'profile' field in config (must be one of: core, humanspec, custom)`
+        );
+      }
+    }
+
+    // Parse custom workflow selection: explicitly registered workflow IDs
+    // kept in first-declared order; every other entry category is warned
+    // about and ignored (see parseWorkflowSelection).
+    if (raw.workflows !== undefined) {
+      const workflows = parseWorkflowSelection(raw.workflows);
+      if (workflows !== undefined) {
+        config.workflows = workflows;
+      }
+    }
+
     const operations = parseOperations(raw.operations);
     if (operations) {
       config.operations = operations;
@@ -374,6 +414,73 @@ export function readProjectConfig(projectRoot: string): ProjectConfig | null {
 
 function configPathForWarnings(projectRoot: string): string {
   return resolveConfigFilePath(projectRoot) ?? path.join(projectRoot, 'openspec', 'config.yaml');
+}
+
+function isProfileName(value: string): boolean {
+  return value === 'core' || value === 'humanspec' || value === 'custom';
+}
+
+/**
+ * Parses the project config `workflows` field (the custom profile selection).
+ *
+ * Valid entries are explicitly registered workflow IDs (core, OpenSpec, and
+ * HumanSpec alike). They are retained in first-declared order, with
+ * duplicates collapsed to the first occurrence. Non-string entries, empty
+ * strings, and unregistered workflow IDs are each warned about and ignored.
+ * Returns undefined when the field is absent, not an array, or normalizes to
+ * nothing.
+ */
+function parseWorkflowSelection(raw: unknown): string[] | undefined {
+  const fieldName = 'workflows';
+  if (!Array.isArray(raw)) {
+    console.warn(`Invalid '${fieldName}' field in config (must be an array of registered workflow IDs)`);
+    return undefined;
+  }
+
+  const selected: string[] = [];
+  const seen = new Set<string>();
+  let droppedNonString = false;
+  let droppedEmpty = false;
+  let droppedDuplicate = false;
+  let droppedUnknown = false;
+
+  for (const entry of raw) {
+    if (typeof entry !== 'string') {
+      droppedNonString = true;
+      continue;
+    }
+    if (entry.length === 0) {
+      droppedEmpty = true;
+      continue;
+    }
+    if (seen.has(entry)) {
+      droppedDuplicate = true;
+      continue;
+    }
+    if (!isRegisteredWorkflow(entry)) {
+      droppedUnknown = true;
+      continue;
+    }
+    seen.add(entry);
+    selected.push(entry);
+  }
+
+  if (droppedNonString) {
+    console.warn(`Some '${fieldName}' entries are not strings, ignoring them`);
+  }
+  if (droppedEmpty) {
+    console.warn(`Some '${fieldName}' entries are empty strings, ignoring them`);
+  }
+  if (droppedDuplicate) {
+    console.warn(`Some '${fieldName}' entries are duplicates, keeping the first occurrence`);
+  }
+  if (droppedUnknown) {
+    console.warn(
+      `Some '${fieldName}' entries are not registered workflow IDs, ignoring them`
+    );
+  }
+
+  return selected.length > 0 ? selected : undefined;
 }
 
 /**

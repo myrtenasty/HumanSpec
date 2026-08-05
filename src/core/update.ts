@@ -41,7 +41,14 @@ import {
 } from './legacy-cleanup.js';
 import { isInteractive } from '../utils/interactive.js';
 import { getGlobalConfig, type Delivery, type Profile } from './global-config.js';
-import { getProfileWorkflows, ALL_WORKFLOWS, CORE_WORKFLOWS } from './profiles.js';
+import {
+  CORE_WORKFLOWS,
+  REGISTERED_WORKFLOWS,
+  toRegisteredWorkflows,
+  type RegisteredWorkflowId,
+} from './profiles.js';
+import { readProjectConfig } from './project-config.js';
+import { resolveEffectiveProfile } from './effective-profile.js';
 import { getOnboardingCommands } from './onboarding-commands.js';
 import { getAvailableTools } from './available-tools.js';
 import {
@@ -78,7 +85,7 @@ const { version: OPENSPEC_VERSION } = require('../../package.json');
  */
 type LegacyUpgradeResult = {
   newlyConfiguredTools: string[];
-  workflowOverrides: Partial<Record<string, readonly (typeof ALL_WORKFLOWS)[number][]>>;
+  workflowOverrides: Partial<Record<string, readonly RegisteredWorkflowId[]>>;
   deferredGlobalCleanup?: LegacyDetectionResult;
 };
 
@@ -141,14 +148,18 @@ export class UpdateCommand {
     const detectedTools = getAvailableTools(resolvedProjectPath);
     migrateIfNeededShared(resolvedProjectPath, detectedTools);
 
-    // 3. Read global config for profile/delivery
-    const globalConfig = getGlobalConfig();
-    const profile = globalConfig.profile ?? 'core';
-    const delivery: Delivery = globalConfig.delivery ?? 'both';
-    const profileWorkflows = getProfileWorkflows(profile, globalConfig.workflows);
-    const desiredWorkflows = profileWorkflows.filter((workflow): workflow is (typeof ALL_WORKFLOWS)[number] =>
-      (ALL_WORKFLOWS as readonly string[]).includes(workflow)
-    );
+    // 3. Resolve the effective profile (CLI override → project config →
+    //    global config → core) and delivery. A project that declares its own
+    //    profile (e.g. humanspec) keeps that selection even when the global
+    //    config says something else; legacy configs without a profile field
+    //    keep the global fallback unchanged.
+    const effective = resolveEffectiveProfile({
+      projectConfig: readProjectConfig(resolvedProjectPath),
+      globalConfig: getGlobalConfig(),
+    });
+    const profile = effective.profile;
+    const delivery: Delivery = getGlobalConfig().delivery ?? 'both';
+    const desiredWorkflows = toRegisteredWorkflows(effective.workflows);
 
     // 4. Detect and handle legacy artifacts + upgrade legacy tools using effective config
     const legacyUpgrade = await this.handleLegacyCleanup(
@@ -226,7 +237,7 @@ export class UpdateCommand {
       // Still check for new tool directories and extra workflows
       this.detectNewTools(resolvedProjectPath, configuredTools);
       this.displayExtraWorkflowsNote(resolvedProjectPath, configuredTools, desiredWorkflows);
-      this.displayMissingCoreWorkflowsNote(profile, globalConfig.workflows);
+      this.displayMissingCoreWorkflowsNote(profile, effective.workflows);
       this.displaySetupNotes(configuredTools);
       return;
     }
@@ -270,7 +281,7 @@ export class UpdateCommand {
 
         // Generate skill files if delivery includes skills
         if (shouldGenerateSkills) {
-          for (const { template, dirName } of skillTemplates) {
+          for (const { template, dirName, namespace } of skillTemplates) {
             const skillDir = path.join(skillsDir, dirName);
             const skillFile = path.join(skillDir, 'SKILL.md');
 
@@ -278,7 +289,8 @@ export class UpdateCommand {
               tool.value,
               delivery,
               resolveCommandSurfaceCapability(tool.value),
-              resolveCommandInvocation(tool.value)
+              resolveCommandInvocation(tool.value),
+              namespace
             );
             const skillContent = generateSkillContent(template, OPENSPEC_VERSION, transformer);
             await FileSystemUtils.writeFile(skillFile, skillContent);
@@ -430,7 +442,7 @@ export class UpdateCommand {
 
     // 14. Display note about extra workflows not in profile
     this.displayExtraWorkflowsNote(resolvedProjectPath, configuredAndNewTools, desiredWorkflows);
-    this.displayMissingCoreWorkflowsNote(profile, globalConfig.workflows);
+    this.displayMissingCoreWorkflowsNote(profile, effective.workflows);
     this.displaySetupNotes(configuredAndNewTools);
 
     // 15. List affected tools
@@ -562,7 +574,7 @@ export class UpdateCommand {
   private async removeSkillDirs(skillsDir: string): Promise<number> {
     let removed = 0;
 
-    for (const workflow of ALL_WORKFLOWS) {
+    for (const workflow of REGISTERED_WORKFLOWS) {
       const dirName = WORKFLOW_TO_SKILL_DIR[workflow];
       if (!dirName) continue;
 
@@ -586,12 +598,12 @@ export class UpdateCommand {
    */
   private async removeUnselectedSkillDirs(
     skillsDir: string,
-    desiredWorkflows: readonly (typeof ALL_WORKFLOWS)[number][]
+    desiredWorkflows: readonly RegisteredWorkflowId[]
   ): Promise<number> {
     const desiredSet = new Set(desiredWorkflows);
     let removed = 0;
 
-    for (const workflow of ALL_WORKFLOWS) {
+    for (const workflow of REGISTERED_WORKFLOWS) {
       if (desiredSet.has(workflow)) continue;
       const dirName = WORKFLOW_TO_SKILL_DIR[workflow];
       if (!dirName) continue;
@@ -647,7 +659,7 @@ export class UpdateCommand {
   private async removeUnselectedCommandFiles(
     projectPath: string,
     toolId: string,
-    desiredWorkflows: readonly (typeof ALL_WORKFLOWS)[number][]
+    desiredWorkflows: readonly RegisteredWorkflowId[]
   ): Promise<number> {
     let removed = 0;
 
@@ -657,7 +669,7 @@ export class UpdateCommand {
     const desiredSet = new Set(desiredWorkflows);
 
     for (const descriptor of MANAGED_COMMANDS) {
-      if (desiredSet.has(descriptor.id)) continue;
+      if (desiredSet.has(descriptor.workflowId)) continue;
       const cmdPath = adapter.getFilePath(descriptor);
       const fullPath = path.isAbsolute(cmdPath) ? cmdPath : path.join(projectPath, cmdPath);
 
@@ -757,7 +769,7 @@ export class UpdateCommand {
    */
   private async handleLegacyCleanup(
     projectPath: string,
-    desiredWorkflows: readonly (typeof ALL_WORKFLOWS)[number][],
+    desiredWorkflows: readonly RegisteredWorkflowId[],
     delivery: Delivery
   ): Promise<LegacyUpgradeResult> {
     // Detect legacy artifacts
@@ -914,7 +926,7 @@ export class UpdateCommand {
     projectPath: string,
     detection: LegacyDetectionResult,
     canPrompt: boolean,
-    desiredWorkflows: readonly (typeof ALL_WORKFLOWS)[number][],
+    desiredWorkflows: readonly RegisteredWorkflowId[],
     delivery: Delivery
   ): Promise<LegacyUpgradeResult> {
     // Get tools that had legacy artifacts
@@ -1014,7 +1026,7 @@ export class UpdateCommand {
 
         // Create skill files when delivery includes skills
         if (shouldGenerateSkills) {
-          for (const { template, dirName } of skillTemplates) {
+          for (const { template, dirName, namespace } of skillTemplates) {
             const skillDir = path.join(skillsDir, dirName);
             const skillFile = path.join(skillDir, 'SKILL.md');
 
@@ -1022,7 +1034,8 @@ export class UpdateCommand {
               tool.value,
               delivery,
               resolveCommandSurfaceCapability(tool.value),
-              resolveCommandInvocation(tool.value)
+              resolveCommandInvocation(tool.value),
+              namespace
             );
             const skillContent = generateSkillContent(template, OPENSPEC_VERSION, transformer);
             await FileSystemUtils.writeFile(skillFile, skillContent);

@@ -137,9 +137,13 @@ Finally /opsx-apply to implement`;
 
     it('rewrites references belonging to the declared family', () => {
       expect(transformHumanspec('/humanspec:propose')).toBe('/humanspec-propose');
-      expect(transformHumanspec('Start with /humanspec:propose, then /humanspec:apply.')).toBe(
-        'Start with /humanspec-propose, then /humanspec-apply.'
+      expect(transformHumanspec('Start with /humanspec:propose, then /humanspec:verify.')).toBe(
+        'Start with /humanspec-propose, then /humanspec-verify.'
       );
+      // `apply` is an OpenSpec command, not a HumanSpec one: the HumanSpec
+      // family registers no apply workflow, so the reference is left as
+      // written rather than rewritten into a command that does not exist.
+      expect(transformHumanspec('/humanspec:apply')).toBe('/humanspec:apply');
     });
 
     it('leaves references to a different namespace unchanged', () => {

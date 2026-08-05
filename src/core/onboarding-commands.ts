@@ -29,13 +29,21 @@ export const DESCRIPTION_BUDGET = 17;
 /**
  * Ordered onboarding hints. Each entry is shown only when its workflow is
  * installed, so the list follows the change lifecycle: start, then build,
- * then implement.
+ * then implement. HumanSpec workflows follow the practice lifecycle: init,
+ * next, propose, coach, verify, archive, explore.
  */
 const ONBOARDING_COMMANDS: readonly OnboardingCommand[] = [
   { workflow: 'propose', command: '/opsx:propose', description: 'Start a change' },
   { workflow: 'new', command: '/opsx:new', description: 'Scaffold a change' },
   { workflow: 'continue', command: '/opsx:continue', description: 'Next artifact' },
   { workflow: 'apply', command: '/opsx:apply', description: 'Implement tasks' },
+  { workflow: 'humanspec-init', command: '/humanspec:init', description: 'Set up project' },
+  { workflow: 'humanspec-next', command: '/humanspec:next', description: 'Pick a change' },
+  { workflow: 'humanspec-propose', command: '/humanspec:propose', description: 'Start a change' },
+  { workflow: 'humanspec-coach', command: '/humanspec:coach', description: 'Get coaching' },
+  { workflow: 'humanspec-verify', command: '/humanspec:verify', description: 'Verify work' },
+  { workflow: 'humanspec-archive', command: '/humanspec:archive', description: 'Archive change' },
+  { workflow: 'humanspec-explore', command: '/humanspec:explore', description: 'Explore ideas' },
 ];
 
 /**

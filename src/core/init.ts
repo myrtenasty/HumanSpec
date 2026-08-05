@@ -11,7 +11,7 @@ import ora from 'ora';
 import * as fs from 'fs';
 import { createRequire } from 'module';
 import { FileSystemUtils } from '../utils/file-system.js';
-import { classifyOpenSpecDir, storePointerProblem } from './project-config.js';
+import { classifyOpenSpecDir, readProjectConfig, storePointerProblem } from './project-config.js';
 import { findRepoPlanningRootSync } from './planning-home.js';
 import { getSkillReferenceTransformer, getTransformerForTool } from '../utils/command-references.js';
 import {
@@ -50,7 +50,12 @@ import {
   type ToolSkillStatus,
 } from './shared/index.js';
 import { getGlobalConfig, type Delivery, type Profile } from './global-config.js';
-import { getProfileWorkflows, CORE_WORKFLOWS, ALL_WORKFLOWS } from './profiles.js';
+import {
+  getProfileWorkflows,
+  CORE_WORKFLOWS,
+  REGISTERED_WORKFLOWS,
+} from './profiles.js';
+import { resolveEffectiveProfile, validateCliProfileOverride, type EffectiveProfile } from './effective-profile.js';
 import { getAvailableTools } from './available-tools.js';
 import { migrateIfNeeded, migrateLegacyToolDirs, describeLegacyMigration, keptInPlaceNotice, hasMovableContent, scanInstalledWorkflows as scanInstalledWorkflowsShared } from './migration.js';
 import {
@@ -89,6 +94,13 @@ const WORKFLOW_TO_SKILL_DIR: Record<string, string> = {
   'verify': 'openspec-verify-change',
   'onboard': 'openspec-onboard',
   'propose': 'openspec-propose',
+  'humanspec-init': 'humanspec-init',
+  'humanspec-next': 'humanspec-next',
+  'humanspec-propose': 'humanspec-propose',
+  'humanspec-coach': 'humanspec-coach',
+  'humanspec-verify': 'humanspec-verify',
+  'humanspec-archive': 'humanspec-archive',
+  'humanspec-explore': 'humanspec-explore',
 };
 
 // -----------------------------------------------------------------------------
@@ -122,6 +134,13 @@ export class InitCommand {
   private readonly interactiveOption?: boolean;
   private readonly profileOverride?: string;
   private readonly animation: boolean;
+  /**
+   * The effective workflow profile resolved once per run (CLI override →
+   * project config → global config → core fallback) and reused by every
+   * step that reads profile state, so generation, config persistence, and
+   * result output can never disagree about the profile.
+   */
+  private effectiveProfile: EffectiveProfile | null = null;
 
   constructor(options: InitCommandOptions = {}) {
     this.toolsArg = options.tools;
@@ -182,10 +201,15 @@ export class InitCommand {
     }
 
     // Validate profile override early so invalid values fail before tool setup.
-    // The resolved value is consumed later when generation reads effective config.
-    // This runs ahead of the welcome screen so an invalid --profile does not make
-    // the user press Enter before seeing the error.
+    // The resolved effective profile (CLI → project config → global → core)
+    // is computed here, before any artifact write or deletion, so an invalid
+    // selection can never leave partial output behind.
     this.resolveProfileOverride();
+    this.effectiveProfile = resolveEffectiveProfile({
+      cliProfile: this.resolveProfileOverride(),
+      projectConfig: readProjectConfig(projectPath),
+      globalConfig: getGlobalConfig(),
+    });
 
     // Show animated welcome screen (interactive mode only)
     const canPrompt = this.canPromptInteractively();
@@ -260,15 +284,7 @@ export class InitCommand {
   }
 
   private resolveProfileOverride(): Profile | undefined {
-    if (this.profileOverride === undefined) {
-      return undefined;
-    }
-
-    if (this.profileOverride === 'core' || this.profileOverride === 'custom') {
-      return this.profileOverride;
-    }
-
-    throw new Error(`Invalid profile "${this.profileOverride}". Available profiles: core, custom`);
+    return validateCliProfileOverride(this.profileOverride);
   }
 
   /**
@@ -276,9 +292,22 @@ export class InitCommand {
    * only mentions commands that will actually exist.
    */
   private getActiveWorkflows(): string[] {
-    const globalCfg = getGlobalConfig();
-    const activeProfile: Profile = this.resolveProfileOverride() ?? globalCfg.profile ?? 'core';
-    return [...getProfileWorkflows(activeProfile, globalCfg.workflows)];
+    const effective = this.getEffectiveProfile();
+    return [...effective.workflows];
+  }
+
+  /**
+   * Returns the effective profile resolved at the start of execute(), or
+   * re-resolves on demand for callers that run outside execute() (tests).
+   */
+  private getEffectiveProfile(): EffectiveProfile {
+    if (this.effectiveProfile !== null) {
+      return this.effectiveProfile;
+    }
+    return resolveEffectiveProfile({
+      cliProfile: this.resolveProfileOverride(),
+      globalConfig: getGlobalConfig(),
+    });
   }
 
   // ═══════════════════════════════════════════════════════════
@@ -694,11 +723,13 @@ export class InitCommand {
     let removedCommandCount = 0;
     let removedSkillCount = 0;
 
-    // Read global config for profile and delivery settings (use --profile override if set)
-    const globalConfig = getGlobalConfig();
-    const profile: Profile = this.resolveProfileOverride() ?? globalConfig.profile ?? 'core';
-    const delivery: Delivery = globalConfig.delivery ?? 'both';
-    const workflows = getProfileWorkflows(profile, globalConfig.workflows);
+    // Resolve the effective profile (CLI override → project config → global
+    // config → core) and delivery once; every artifact generated below follows
+    // exactly this workflow set.
+    const effective = this.getEffectiveProfile();
+    const profile: Profile = effective.profile;
+    const delivery: Delivery = getGlobalConfig().delivery ?? 'both';
+    const workflows = effective.workflows;
 
     // Get skill and command templates filtered by profile workflows
     const deliveryIncludesCommands = delivery !== 'skills';
@@ -719,16 +750,20 @@ export class InitCommand {
           const skillsDir = path.join(projectPath, tool.skillsDir, 'skills');
 
           // Create skill directories and SKILL.md files
-          for (const { template, dirName } of skillTemplates) {
+          for (const { template, dirName, namespace } of skillTemplates) {
             const skillDir = path.join(skillsDir, dirName);
             const skillFile = path.join(skillDir, 'SKILL.md');
 
-            // Generate SKILL.md content with YAML frontmatter including generatedBy
+            // Generate SKILL.md content with YAML frontmatter including generatedBy.
+            // The template's command namespace (humanspec for HumanSpec entries)
+            // drives reference rewriting so the skill never advertises a spelling
+            // different from the files registered for the same family.
             const transformer = getTransformerForTool(
               tool.value,
               delivery,
               resolveCommandSurfaceCapability(tool.value),
-              resolveCommandInvocation(tool.value)
+              resolveCommandInvocation(tool.value),
+              namespace
             );
             const skillContent = generateSkillContent(template, OPENSPEC_VERSION, transformer);
 
@@ -791,19 +826,59 @@ export class InitCommand {
   // CONFIG FILE
   // ═══════════════════════════════════════════════════════════
 
-  private async createConfig(openspecPath: string, extendMode: boolean): Promise<'created' | 'exists' | 'skipped'> {
+  private async createConfig(
+    openspecPath: string,
+    extendMode: boolean
+  ): Promise<'created' | 'exists' | 'updated' | 'skipped'> {
     const configPath = path.join(openspecPath, 'config.yaml');
     const configYmlPath = path.join(openspecPath, 'config.yml');
     const configYamlExists = fs.existsSync(configPath);
     const configYmlExists = fs.existsSync(configYmlPath);
+    const existingConfigPath = configYamlExists ? configPath : configYmlExists ? configYmlPath : null;
 
-    if (configYamlExists || configYmlExists) {
+    const effective = this.getEffectiveProfile();
+
+    if (existingConfigPath !== null) {
+      // Extend mode with an explicit profile override: update only the
+      // profile-related keys in the existing .yaml/.yml document, preserving
+      // every other field, user-authored content, comments, and the file
+      // extension. Without an explicit override the config is preserved
+      // byte-for-byte — no project profile is added or changed.
+      const cliOverride = this.resolveProfileOverride();
+      if (cliOverride !== undefined) {
+        try {
+          const { parseDocument } = await import('yaml');
+          const content = fs.readFileSync(existingConfigPath, 'utf-8');
+          const doc = parseDocument(content);
+          doc.set('profile', cliOverride);
+          if (cliOverride === 'custom' && effective.workflows.length > 0) {
+            doc.set('workflows', [...effective.workflows]);
+          } else if (cliOverride !== 'custom') {
+            // A named preset (core/humanspec) fully determines workflow
+            // membership; drop any stale custom selection so the file does
+            // not suggest a list the resolver will never consult.
+            doc.delete('workflows');
+          }
+          await FileSystemUtils.writeFile(existingConfigPath, doc.toString());
+          return 'updated';
+        } catch {
+          return 'skipped';
+        }
+      }
       return 'exists';
     }
 
-
     try {
-      const yamlContent = serializeConfig({ schema: DEFAULT_SCHEMA });
+      // New config: persist the resolved named profile alongside the schema
+      // setting so init and update resolve the same effective workflow set
+      // for this project. Custom selections also persist the workflow list.
+      const yamlContent = serializeConfig({
+        schema: DEFAULT_SCHEMA,
+        profile: effective.profile,
+        ...(effective.profile === 'custom' && effective.workflows.length > 0
+          ? { workflows: [...effective.workflows] }
+          : {}),
+      });
       await FileSystemUtils.writeFile(configPath, yamlContent);
       return 'created';
     } catch {
@@ -827,7 +902,7 @@ export class InitCommand {
       removedCommandCount: number;
       removedSkillCount: number;
     },
-    configStatus: 'created' | 'exists' | 'skipped'
+    configStatus: 'created' | 'exists' | 'updated' | 'skipped'
   ): void {
     console.log();
     console.log(chalk.bold('OpenSpec Setup Complete'));
@@ -844,10 +919,9 @@ export class InitCommand {
     // Show counts (respecting profile filter)
     const successfulTools = [...results.createdTools, ...results.refreshedTools];
     if (successfulTools.length > 0) {
-      const globalConfig = getGlobalConfig();
-      const profile: Profile = (this.profileOverride as Profile) ?? globalConfig.profile ?? 'core';
-      const delivery: Delivery = globalConfig.delivery ?? 'both';
-      const workflows = getProfileWorkflows(profile, globalConfig.workflows);
+      const effective = this.getEffectiveProfile();
+      const delivery: Delivery = getGlobalConfig().delivery ?? 'both';
+      const workflows = effective.workflows;
       const toolDirs = [...new Set(successfulTools.map((t) => t.skillsDir))].join(', ');
       const skillCount = successfulTools.some((tool) => shouldGenerateSkillsForTool(tool.value, delivery))
         ? getSkillTemplates(workflows).length
@@ -891,9 +965,44 @@ export class InitCommand {
       }
     }
 
+    // Effective profile summary: the profile, its source, and — for HumanSpec
+    // projects — the tool-specific invocation forms the generated commands
+    // answer to.
+    const effective = this.getEffectiveProfile();
+    const sourceLabel = effective.source === 'cli'
+      ? 'CLI override'
+      : effective.source === 'project'
+        ? 'project config (openspec/config.yaml)'
+        : effective.source === 'global'
+          ? 'global config'
+          : 'default (core)';
+    console.log(`Profile: ${effective.profile} (source: ${sourceLabel})`);
+    if (effective.profile === 'humanspec' && successfulTools.length > 0) {
+      const invocationForms = new Set(
+        successfulTools.map((tool) => {
+          const transformer = getTransformerForTool(
+            tool.value,
+            getGlobalConfig().delivery ?? 'both',
+            resolveCommandSurfaceCapability(tool.value),
+            resolveCommandInvocation(tool.value),
+            'humanspec'
+          );
+          return transformer ? transformer('/humanspec:propose') : '/humanspec:propose';
+        })
+      );
+      console.log(
+        `HumanSpec commands: ${invocationForms.size === 1 ? [...invocationForms][0] : [...invocationForms].join(', ')} (propose a practice change)`
+      );
+    }
+
     // Config status
     if (configStatus === 'created') {
-      console.log(`Config: openspec/config.yaml (schema: ${DEFAULT_SCHEMA})`);
+      console.log(`Config: openspec/config.yaml (schema: ${DEFAULT_SCHEMA}, profile: ${effective.profile})`);
+    } else if (configStatus === 'updated') {
+      const configYaml = path.join(projectPath, OPENSPEC_DIR_NAME, 'config.yaml');
+      const configYml = path.join(projectPath, OPENSPEC_DIR_NAME, 'config.yml');
+      const configName = fs.existsSync(configYaml) ? 'config.yaml' : fs.existsSync(configYml) ? 'config.yml' : 'config.yaml';
+      console.log(`Config: openspec/${configName} (profile updated to ${effective.profile})`);
     } else if (configStatus === 'exists') {
       // Show actual filename (config.yaml or config.yml)
       const configYaml = path.join(projectPath, OPENSPEC_DIR_NAME, 'config.yaml');
@@ -904,7 +1013,9 @@ export class InitCommand {
       console.log(chalk.dim(`Config: skipped (non-interactive mode)`));
     }
 
-    // Getting started (task 7.6: show propose if in profile)
+    // Getting started (task 7.6: show propose if in profile; HumanSpec
+    // projects are pointed at /humanspec:init instead of an implementation
+    // workflow).
     const activeWorkflows = this.getActiveWorkflows();
     // When no tool got /opsx:* commands, point at the skill instead of a
     // command that does not exist.
@@ -920,7 +1031,7 @@ export class InitCommand {
     // covered by the configuration correction instead. When the selection
     // disagrees, print one line per distinct instruction, labeled with the
     // tools it applies to.
-    const startHintLines = (command: string): string[] => {
+    const startHintLines = (command: string, namespace?: string): string[] => {
       const hintToTools = new Map<string, string[]>();
       for (const tool of successfulTools) {
         let hint: string;
@@ -929,11 +1040,12 @@ export class InitCommand {
             tool.value,
             activeDelivery,
             resolveCommandSurfaceCapability(tool.value),
-            resolveCommandInvocation(tool.value)
+            resolveCommandInvocation(tool.value),
+            namespace
           );
           hint = `Start your first change: ${transformer ? transformer(command) : command} "your idea"`;
         } else if (shouldGenerateSkillsForTool(tool.value, activeDelivery)) {
-          hint = `Start your first change: ${getSkillReferenceTransformer(tool.value)(command)} "your idea"`;
+          hint = `Start your first change: ${getSkillReferenceTransformer(tool.value, namespace)(command)} "your idea"`;
         } else {
           continue;
         }
@@ -948,9 +1060,9 @@ export class InitCommand {
       }
       return [...hintToTools.entries()].map(([hint, toolNames]) => `${hint} (${toolNames.join(', ')})`);
     };
-    const printStartHints = (command: string): void => {
+    const printStartHints = (command: string, namespace?: string): void => {
       console.log(chalk.bold('Getting started:'));
-      for (const line of startHintLines(command)) {
+      for (const line of startHintLines(command, namespace)) {
         console.log(`  ${line}`);
       }
     };
@@ -977,6 +1089,8 @@ export class InitCommand {
     if (successfulTools.length > 0 && !commandsGenerated && !skillsGenerated) {
       // Nothing was generated for any tool: the correction above is the
       // whole story, so don't advertise an invocation that doesn't exist.
+    } else if (activeWorkflows.includes('humanspec-init')) {
+      printStartHints('/humanspec:init', 'humanspec');
     } else if (activeWorkflows.includes('propose')) {
       printStartHints('/opsx:propose');
     } else if (activeWorkflows.includes('new')) {
@@ -1021,7 +1135,7 @@ export class InitCommand {
   private async removeSkillDirs(skillsDir: string): Promise<number> {
     let removed = 0;
 
-    for (const workflow of ALL_WORKFLOWS) {
+    for (const workflow of REGISTERED_WORKFLOWS) {
       const dirName = WORKFLOW_TO_SKILL_DIR[workflow];
       if (!dirName) continue;
 

@@ -11,6 +11,18 @@ export function serializeConfig(config: Partial<ProjectConfig>): string {
 
   // Schema (required)
   lines.push(`schema: ${config.schema}`);
+
+  // Named workflow profile (optional; persisted by init so init and update
+  // resolve the same effective workflow set for the project)
+  if (config.profile !== undefined) {
+    lines.push(`profile: ${config.profile}`);
+    if (config.profile === 'custom' && config.workflows && config.workflows.length > 0) {
+      lines.push('workflows:');
+      for (const workflow of config.workflows) {
+        lines.push(`  - ${workflow}`);
+      }
+    }
+  }
   lines.push('');
 
   // Context section with comments

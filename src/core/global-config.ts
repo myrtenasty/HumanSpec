@@ -8,8 +8,10 @@ export const GLOBAL_CONFIG_FILE_NAME = 'config.json';
 export const GLOBAL_DATA_DIR_NAME = 'openspec';
 
 // TypeScript types
-export type Profile = 'core' | 'custom';
+export type Profile = 'core' | 'humanspec' | 'custom';
 export type Delivery = 'both' | 'skills' | 'commands';
+
+const VALID_PROFILES: readonly Profile[] = ['core', 'humanspec', 'custom'];
 
 // TypeScript interfaces
 export interface GlobalConfig {
@@ -142,8 +144,15 @@ export function getGlobalConfig(): GlobalConfig {
       }
     };
 
-    // Schema evolution: apply defaults for new fields if not present in loaded config
+    // Schema evolution: apply defaults for new fields if not present in loaded config.
+    // An unsupported profile value falls back to 'core' with a warning, preserving
+    // every unrelated field (see global-config spec: invalid profile keeps core fallback).
     if (parsed.profile === undefined) {
+      merged.profile = DEFAULT_CONFIG.profile;
+    } else if (!VALID_PROFILES.includes(parsed.profile)) {
+      console.warn(
+        `Warning: Invalid profile "${String(parsed.profile)}" in ${configPath}, using "${DEFAULT_CONFIG.profile}"`
+      );
       merged.profile = DEFAULT_CONFIG.profile;
     }
     if (parsed.delivery === undefined) {

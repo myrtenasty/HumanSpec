@@ -8,19 +8,39 @@ import {
 } from '../../../src/core/shared/tool-detection.js';
 import { CommandAdapterRegistry } from '../../../src/core/command-generation/index.js';
 import { hasToolProfileOrDeliveryDrift, WORKFLOW_TO_SKILL_DIR } from '../../../src/core/profile-sync-drift.js';
-import { CORE_WORKFLOWS } from '../../../src/core/profiles.js';
+import { CORE_WORKFLOWS, HUMANSPEC_WORKFLOWS } from '../../../src/core/profiles.js';
+
+/** Action IDs of the humanspec command family, mirroring HUMANSPEC_WORKFLOWS. */
+const HUMANSPEC_ACTIONS = HUMANSPEC_WORKFLOWS.map((workflow) => workflow.replace('humanspec-', ''));
+
+/** A command namespace that is NOT registered, used to prove cleanup leaves it alone. */
+const UNREGISTERED_NAMESPACE = 'mycompany';
 
 describe('managed command descriptors', () => {
-  it('carries an explicit namespace and id for every managed command', () => {
-    expect(MANAGED_COMMANDS).toHaveLength(COMMAND_IDS.length);
-    for (const descriptor of MANAGED_COMMANDS) {
-      expect(descriptor.namespace).toBe('opsx');
+  it('carries an explicit namespace, id, and workflow for every managed command', () => {
+    expect(MANAGED_COMMANDS).toHaveLength(COMMAND_IDS.length + HUMANSPEC_WORKFLOWS.length);
+
+    const opsxDescriptors = MANAGED_COMMANDS.filter((d) => d.namespace === 'opsx');
+    const humanSpecDescriptors = MANAGED_COMMANDS.filter((d) => d.namespace === 'humanspec');
+
+    expect(opsxDescriptors).toHaveLength(COMMAND_IDS.length);
+    for (const descriptor of opsxDescriptors) {
       expect(COMMAND_IDS).toContain(descriptor.id);
+      expect(descriptor.workflowId).toBe(descriptor.id);
+    }
+
+    expect(humanSpecDescriptors).toHaveLength(HUMANSPEC_WORKFLOWS.length);
+    for (const descriptor of humanSpecDescriptors) {
+      expect(HUMANSPEC_ACTIONS).toContain(descriptor.id);
+      expect(descriptor.workflowId).toBe(`humanspec-${descriptor.id}`);
     }
   });
 
-  it('mirrors COMMAND_IDS in order', () => {
-    expect(MANAGED_COMMANDS.map((d) => d.id)).toEqual([...COMMAND_IDS]);
+  it('mirrors COMMAND_IDS in order, followed by the humanspec family', () => {
+    expect(MANAGED_COMMANDS.filter((d) => d.namespace === 'opsx').map((d) => d.id)).toEqual([...COMMAND_IDS]);
+    expect(MANAGED_COMMANDS.filter((d) => d.namespace === 'humanspec').map((d) => d.id)).toEqual(
+      HUMANSPEC_ACTIONS
+    );
   });
 
   it('enumerates exactly the registered namespace/ID adapter paths', () => {
@@ -33,18 +53,23 @@ describe('managed command descriptors', () => {
     for (const id of COMMAND_IDS) {
       expect(managedPaths).toContain(path.join('.claude', 'commands', 'opsx', `${id}.md`));
     }
-    expect(managedPaths).toHaveLength(COMMAND_IDS.length);
-    expect(managedPaths.some((p) => p.includes('humanspec'))).toBe(false);
+    for (const action of HUMANSPEC_ACTIONS) {
+      expect(managedPaths).toContain(path.join('.claude', 'commands', 'humanspec', `${action}.md`));
+    }
+    expect(managedPaths).toHaveLength(COMMAND_IDS.length + HUMANSPEC_WORKFLOWS.length);
+    expect(managedPaths.some((p) => p.includes(UNREGISTERED_NAMESPACE))).toBe(false);
   });
 
-  it('projects every registered descriptor to an opsx path for every adapter', () => {
+  it('projects every registered descriptor to its family path for every adapter', () => {
     for (const adapter of CommandAdapterRegistry.getAll()) {
       for (const descriptor of MANAGED_COMMANDS) {
         const filePath = adapter.getFilePath(descriptor);
-        // Every adapter carries the opsx family in its path: as a directory
+        // Every adapter carries the command family in its path: as a directory
         // segment for namespaced adapters or as the filename prefix for flat
         // adapters — exactly the two shapes invocation.ts classifies.
-        expect(filePath, `${adapter.toolId} ${descriptor.id}`).toMatch(/(?:\/|\\)opsx(?:-|[/\\]|$)/);
+        expect(filePath, `${adapter.toolId} ${descriptor.id}`).toMatch(
+          /(?:\/|\\)(?:opsx|humanspec)(?:-|[/\\]|$)/
+        );
       }
     }
   });
@@ -97,9 +122,9 @@ describe('cleanup safety around managed command paths', () => {
 
   it('preserves a file in an unregistered namespace', () => {
     setupCoreSkills();
-    // Same command id, humanspec family: not in the managed descriptor list,
+    // Same command id, unregistered family: not in the managed descriptor list,
     // so cleanup must leave it alone and it must not look like drift.
-    writeFileUnder(path.join('.claude', 'commands', 'humanspec', 'propose.md'));
+    writeFileUnder(path.join('.claude', 'commands', UNREGISTERED_NAMESPACE, 'propose.md'));
     expect(hasToolProfileOrDeliveryDrift(tempDir, 'claude', CORE_WORKFLOWS, 'skills')).toBe(false);
   });
 
@@ -124,6 +149,13 @@ describe('cleanup safety around managed command paths', () => {
     // Every registered path triggers reconciliation...
     expect(hasToolProfileOrDeliveryDrift(tempDir, 'claude', CORE_WORKFLOWS, 'skills')).toBe(true);
     // ...and an unregistered namespace next to them changes nothing.
+    writeFileUnder(path.join('.claude', 'commands', UNREGISTERED_NAMESPACE, 'propose.md'));
+    expect(hasToolProfileOrDeliveryDrift(tempDir, 'claude', CORE_WORKFLOWS, 'skills')).toBe(true);
+  });
+
+  it('flags a humanspec command file as drift when humanspec is deselected', () => {
+    // A registered humanspec command file under the core profile is managed
+    // content that is not selected: cleanup must reconcile it.
     writeFileUnder(path.join('.claude', 'commands', 'humanspec', 'propose.md'));
     expect(hasToolProfileOrDeliveryDrift(tempDir, 'claude', CORE_WORKFLOWS, 'skills')).toBe(true);
   });
