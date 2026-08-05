@@ -6,85 +6,109 @@ Define tool-agnostic command content and adapter contracts for generating tool-s
 ## Requirements
 ### Requirement: CommandContent interface
 
-The system SHALL define a tool-agnostic `CommandContent` interface for command data.
+The system SHALL define a tool-agnostic `CommandContent` interface that represents command presentation separately from its command-family identity.
 
 #### Scenario: CommandContent structure
 
 - **WHEN** defining a command to generate
 - **THEN** `CommandContent` SHALL include:
-  - `id`: string identifier (e.g., 'explore', 'apply')
-  - `name`: human-readable name (e.g., 'OpenSpec Explore')
+  - `id`: string action identifier such as `explore` or `apply`
+  - `namespace`: optional command-family identifier such as `opsx` or `humanspec`
+  - `name`: human-readable name such as `OpenSpec Explore`
   - `description`: brief description of command purpose
-  - `category`: grouping category (e.g., 'OpenSpec')
+  - `category`: grouping category such as `OpenSpec`
   - `tags`: array of tag strings
   - `body`: the command instruction content
 
+#### Scenario: Existing command omits namespace
+
+- **WHEN** a command definition does not declare `namespace`
+- **THEN** the system SHALL resolve its namespace as `opsx`
+- **AND** its generated identity SHALL remain equivalent to the existing OpenSpec command
+
+#### Scenario: Invalid namespace is rejected
+
+- **WHEN** a command namespace is empty, contains a path separator, contains a traversal segment, or is not a lowercase kebab-case segment
+- **THEN** generation SHALL fail before resolving or writing a command path
+- **AND** the error SHALL identify the invalid namespace
+
 ### Requirement: ToolCommandAdapter interface
 
-The system SHALL define a `ToolCommandAdapter` interface for per-tool formatting.
+The system SHALL define a `ToolCommandAdapter` interface for formatting a resolved command identity for each tool.
 
 #### Scenario: Adapter interface structure
 
 - **WHEN** implementing a tool adapter
 - **THEN** `ToolCommandAdapter` SHALL require:
   - `toolId`: string identifier matching `AIToolOption.value`
-  - `getFilePath(commandId: string)`: returns file path for command (relative from project root, or absolute for global-scoped tools like Codex)
-  - `formatFile(content: CommandContent)`: returns complete file content with frontmatter
+  - `getFilePath(identity: CommandIdentity)`: returns the command path using the supplied namespace and ID, relative from the project root or absolute for a global-scoped tool
+  - `formatFile(content: CommandContent)`: returns complete tool-native file content, including frontmatter when the tool's format uses it
 
 #### Scenario: Claude adapter formatting
 
-- **WHEN** formatting a command for Claude Code
-- **THEN** the adapter SHALL output YAML frontmatter with `name`, `description`, `category`, `tags` fields
-- **AND** file path SHALL follow pattern `.claude/commands/opsx/<id>.md`
+- **WHEN** formatting command `{ namespace: "<namespace>", id: "<id>" }` for Claude Code
+- **THEN** the adapter SHALL output YAML frontmatter with `name`, `description`, `category`, and `tags` fields
+- **AND** the file path SHALL follow `.claude/commands/<namespace>/<id>.md` using valid platform path separators
 
 #### Scenario: Cursor adapter formatting
 
-- **WHEN** formatting a command for Cursor
-- **THEN** the adapter SHALL output YAML frontmatter with `name` as `/opsx-<id>`, `id`, `category`, `description` fields
-- **AND** file path SHALL follow pattern `.cursor/commands/opsx-<id>.md`
+- **WHEN** formatting command `{ namespace: "<namespace>", id: "<id>" }` for Cursor
+- **THEN** the adapter SHALL output YAML frontmatter whose displayed command name is `/<namespace>-<id>` together with its existing metadata fields
+- **AND** the file path SHALL follow `.cursor/commands/<namespace>-<id>.md` using valid platform path separators
 
-#### Scenario: Windsurf adapter formatting
+#### Scenario: Devin Desktop adapter formatting
 
-- **WHEN** formatting a command for Windsurf
-- **THEN** the adapter SHALL output YAML frontmatter with `name`, `description`, `category`, `tags` fields
-- **AND** file path SHALL follow pattern `.windsurf/workflows/opsx-<id>.md`
+- **WHEN** formatting command `{ namespace: "<namespace>", id: "<id>" }` for Devin Desktop
+- **THEN** the adapter SHALL retain its existing frontmatter fields
+- **AND** the file path SHALL follow `.devin/workflows/<namespace>-<id>.md` using valid platform path separators
 
 #### Scenario: Trae adapter formatting
 
-- **WHEN** formatting a command for Trae
+- **WHEN** formatting command `{ namespace: "<namespace>", id: "<id>" }` for Trae
 - **THEN** the adapter SHALL output YAML frontmatter with `name` and `description` fields
-- **AND** file path SHALL follow pattern `.trae/commands/opsx-<id>.md`
+- **AND** the file path SHALL follow `.trae/commands/<namespace>-<id>.md` using valid platform path separators
+
+#### Scenario: Existing adapter output remains stable
+
+- **WHEN** any registered adapter receives a command whose resolved namespace is `opsx`
+- **THEN** it SHALL return the same path and frontmatter-visible command name that the adapter generated before namespace support
 
 ### Requirement: Command generator function
 
-The system SHALL provide a `generateCommand` function that combines content with adapter.
+The system SHALL provide a `generateCommand` function that resolves command identity and combines command content with an adapter.
 
 #### Scenario: Generate command file
 
 - **WHEN** calling `generateCommand(content, adapter)`
-- **THEN** it SHALL return an object with:
-  - `path`: the file path from `adapter.getFilePath(content.id)`
-  - `fileContent`: the formatted content from `adapter.formatFile(content)`
+- **THEN** it SHALL resolve `{ namespace: content.namespace ?? "opsx", id: content.id }`
+- **AND** return `path` from `adapter.getFilePath(identity)`
+- **AND** return `fileContent` from `adapter.formatFile(content)` after tool-specific reference transformation
 
 #### Scenario: Command references match the name the tool registers
 
-- **WHEN** the adapter's file path names the command by filename (`opsx-<id>`)
-- **THEN** `generateCommand` SHALL rewrite `/opsx:<id>` references in the body to `/opsx-<id>` before formatting
-- **WHEN** the adapter's file path does not name the command by filename (for example it namespaces the command under an `opsx/` directory)
-- **THEN** the body's `/opsx:<id>` references SHALL be left unchanged
+- **WHEN** the adapter's file path names `{ namespace, id }` by a flat filename such as `<namespace>-<id>`
+- **THEN** `generateCommand` SHALL rewrite `/<namespace>:<target-id>` references in the body to `/<namespace>-<target-id>` before formatting
+- **WHEN** the adapter's file path namespaces the command under a `<namespace>/` directory
+- **THEN** the body's `/<namespace>:<target-id>` references SHALL remain in namespaced form
 
 #### Scenario: Command references use the tool's own invocation prefix
 
-- **WHEN** an adapter declares an `invocationPrefix` because its files are not invoked with a slash (Amazon Q loads `.amazonq/prompts/opsx-<id>.md` into a prompt library invoked with `@`)
-- **THEN** `generateCommand` SHALL rewrite `/opsx:<id>` references in the body to `<prefix>opsx-<id>` — for Amazon Q, `@opsx-<id>` — replacing the leading slash rather than adding to it
-- **AND** generated skills and the `init`/`update` "Getting started" hint SHALL use the same form
-- **WHEN** an adapter declares no `invocationPrefix`
-- **THEN** the prefix SHALL default to `/`
+- **WHEN** an adapter declares an invocation prefix other than `/`
+- **THEN** `generateCommand` SHALL use that prefix with the command's namespace and the adapter's separator
+- **AND** Amazon Q SHALL render a HumanSpec reference as `@humanspec-<id>` and an OpenSpec reference as `@opsx-<id>`
+- **AND** generated skills and init/update onboarding hints SHALL use the same spelling
 
 #### Scenario: Generate multiple commands
 
-- **WHEN** generating all opsx commands for a tool
-- **THEN** the system SHALL iterate over command contents and generate each using the tool's adapter
+- **WHEN** generating commands from descriptors that contain more than one namespace
+- **THEN** the system SHALL generate each command using its own resolved namespace and ID
+- **AND** SHALL preserve input descriptor order
+
+#### Scenario: Windows command path resolution
+
+- **WHEN** commands in `opsx` and `humanspec` namespaces are generated on Windows
+- **THEN** every adapter path SHALL resolve beneath that adapter's declared command directory using Windows-valid separators
+- **AND** command identity SHALL not depend on a hardcoded forward-slash path
 
 ### Requirement: CommandAdapterRegistry
 
@@ -108,10 +132,38 @@ The system SHALL provide a registry for looking up tool adapters.
 
 ### Requirement: Shared command body content
 
-The body content of commands SHALL be shared across all tools.
+The body content of a command SHALL be shared across tools while retaining the command's declared namespace.
 
 #### Scenario: Same instructions across tools
 
-- **WHEN** generating the 'explore' command for Claude and Cursor
-- **THEN** both SHALL use the same `body` content
-- **AND** only the frontmatter, the file path, and the spelling of `/opsx:*` command references SHALL differ
+- **WHEN** generating the same command descriptor for two tools
+- **THEN** both SHALL use the same semantic body content
+- **AND** only frontmatter, file path, invocation prefix, and spelling of references belonging to the declared namespace SHALL differ
+
+#### Scenario: References to a different namespace remain explicit
+
+- **WHEN** a command body contains a reference whose namespace differs from the command descriptor's namespace
+- **THEN** generation SHALL leave that reference unchanged unless the caller supplies an explicit descriptor for transforming that command family
+
+### Requirement: Managed command enumeration
+
+The system SHALL derive generated command content, detection, drift checks, migration, and cleanup from one canonical descriptor source containing workflow ID, namespace, and command ID.
+
+#### Scenario: Missing command is detected by workflow identity
+
+- **WHEN** a selected workflow's command file is absent
+- **THEN** profile synchronization SHALL report drift using the descriptor's workflow identity
+- **AND** command action IDs that overlap across namespaces SHALL not affect the result
+
+#### Scenario: Cleanup preserves unregistered command paths
+
+- **WHEN** init or update encounters a similarly named command path whose namespace and ID are not an explicitly registered managed or legacy identity
+- **THEN** cleanup SHALL preserve the file and its containing directory
+- **AND** cleanup SHALL delete only exact registered legacy command paths
+- **AND** cleanup SHALL not follow symlinks or Windows junctions outside the project
+
+#### Scenario: Legacy directory contains user content
+
+- **WHEN** a legacy command directory contains both exact managed legacy files and unrelated user content
+- **THEN** cleanup SHALL delete the managed files individually
+- **AND** preserve the directory and unrelated content
