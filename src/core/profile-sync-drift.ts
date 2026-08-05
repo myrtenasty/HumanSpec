@@ -4,6 +4,10 @@ import { AI_TOOLS } from './config.js';
 import type { Delivery } from './global-config.js';
 import { ALL_WORKFLOWS, REGISTERED_WORKFLOWS, isRegisteredWorkflow, type RegisteredWorkflowId } from './profiles.js';
 import { CommandAdapterRegistry } from './command-generation/index.js';
+import {
+  COMMAND_DESCRIPTORS,
+  getCommandDescriptorForWorkflow,
+} from './templates/command-descriptors.js';
 import { MANAGED_COMMANDS, getConfiguredTools } from './shared/index.js';
 import {
   shouldGenerateCommandsForTool,
@@ -14,34 +18,10 @@ import {
 
 type WorkflowId = RegisteredWorkflowId;
 
-/**
- * Maps workflow IDs to their skill directory names.
- *
- * The seven humanspec-<action> entries are the HumanSpec profile's skill
- * registrations; they stay in this explicit list until
- * `unify-template-generation-pipeline` introduces a workflow manifest.
- */
-export const WORKFLOW_TO_SKILL_DIR: Record<WorkflowId, string> = {
-  'explore': 'openspec-explore',
-  'new': 'openspec-new-change',
-  'continue': 'openspec-continue-change',
-  'apply': 'openspec-apply-change',
-  'update': 'openspec-update-change',
-  'ff': 'openspec-ff-change',
-  'sync': 'openspec-sync-specs',
-  'archive': 'openspec-archive-change',
-  'bulk-archive': 'openspec-bulk-archive-change',
-  'verify': 'openspec-verify-change',
-  'onboard': 'openspec-onboard',
-  'propose': 'openspec-propose',
-  'humanspec-init': 'humanspec-init',
-  'humanspec-next': 'humanspec-next',
-  'humanspec-propose': 'humanspec-propose',
-  'humanspec-coach': 'humanspec-coach',
-  'humanspec-verify': 'humanspec-verify',
-  'humanspec-archive': 'humanspec-archive',
-  'humanspec-explore': 'humanspec-explore',
-};
+/** Workflow-to-skill projection of the canonical command descriptors. */
+export const WORKFLOW_TO_SKILL_DIR = Object.fromEntries(
+  COMMAND_DESCRIPTORS.map((descriptor) => [descriptor.workflowId, descriptor.skillDirName])
+) as Record<WorkflowId, string>;
 
 function toKnownWorkflows(workflows: readonly string[]): WorkflowId[] {
   return workflows.filter(isRegisteredWorkflow);
@@ -108,7 +88,7 @@ export function hasToolProfileOrDeliveryDrift(
 
   if (shouldGenerateCommands && adapter) {
     for (const workflow of knownDesiredWorkflows) {
-      const descriptor = MANAGED_COMMANDS.find((c) => c.id === workflow);
+      const descriptor = getCommandDescriptorForWorkflow(workflow);
       if (!descriptor) continue;
       const cmdPath = adapter.getFilePath(descriptor);
       const fullPath = path.isAbsolute(cmdPath) ? cmdPath : path.join(projectPath, cmdPath);

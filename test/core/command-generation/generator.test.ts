@@ -175,6 +175,15 @@ describe('command-generation/generator', () => {
       expect(result.path).toBe(path.join('.claude', 'commands', 'humanspec', 'propose.md'));
     });
 
+    it('rewrites arbitrary same-family actions to the name a flat adapter registers', () => {
+      const result = generateCommand(
+        { ...sampleContent, id: 'deploy', namespace: 'acme', body: 'Run /acme:deploy.' },
+        cursorAdapter
+      );
+      expect(result.path).toBe(path.join('.cursor', 'commands', 'acme-deploy.md'));
+      expect(result.fileContent).toContain('Run /acme-deploy.');
+    });
+
     it('keeps every existing OpenSpec path and invocation text when namespace is omitted', () => {
       // Parity: omitting the namespace must be byte-for-byte equivalent to
       // declaring opsx, for the path, the file content, and every invocation

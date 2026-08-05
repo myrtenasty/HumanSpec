@@ -61,16 +61,12 @@ describe('transformCommandInvocations', () => {
       expect(transformToHyphenCommands(input)).toBe(expected);
     });
 
-    it('should leave unknown command references unchanged', () => {
-      // Mirrors transformToSkillReferences: an invented id is left as written
-      // rather than reshaped into a command that does not exist either.
-      const input = 'Try /opsx:unknown-command here';
-      expect(transformToHyphenCommands(input)).toBe(input);
-    });
-
-    it('should rewrite only the known id on a mixed line', () => {
+    it('rewrites every syntactically valid id in the declared namespace', () => {
+      expect(transformToHyphenCommands('Try /opsx:unknown-command here')).toBe(
+        'Try /opsx-unknown-command here'
+      );
       expect(transformToHyphenCommands('/opsx:apply and /opsx:bogus')).toBe(
-        '/opsx-apply and /opsx:bogus'
+        '/opsx-apply and /opsx-bogus'
       );
     });
   });
@@ -119,9 +115,9 @@ Finally /opsx-apply to implement`;
       );
     });
 
-    it('leaves unknown ids alone under a non-slash prefix too', () => {
+    it('rewrites arbitrary same-family ids under a non-slash prefix too', () => {
       expect(transformCommandInvocations('/opsx:apply and /opsx:bogus', FLAT_AT)).toBe(
-        '@opsx-apply and /opsx:bogus'
+        '@opsx-apply and @opsx-bogus'
       );
     });
 
@@ -140,10 +136,7 @@ Finally /opsx-apply to implement`;
       expect(transformHumanspec('Start with /humanspec:propose, then /humanspec:verify.')).toBe(
         'Start with /humanspec-propose, then /humanspec-verify.'
       );
-      // `apply` is an OpenSpec command, not a HumanSpec one: the HumanSpec
-      // family registers no apply workflow, so the reference is left as
-      // written rather than rewritten into a command that does not exist.
-      expect(transformHumanspec('/humanspec:apply')).toBe('/humanspec:apply');
+      expect(transformHumanspec('/humanspec:apply')).toBe('/humanspec-apply');
     });
 
     it('leaves references to a different namespace unchanged', () => {
@@ -166,9 +159,15 @@ Finally /opsx-apply to implement`;
       );
     });
 
-    it('leaves unknown ids alone under an explicit namespace too', () => {
+    it('supports arbitrary namespace and action identities', () => {
       expect(transformHumanspec('/humanspec:propose and /humanspec:bogus')).toBe(
-        '/humanspec-propose and /humanspec:bogus'
+        '/humanspec-propose and /humanspec-bogus'
+      );
+      expect(transformCommandInvocations('/acme:deploy', FLAT_SLASH, 'acme')).toBe(
+        '/acme-deploy'
+      );
+      expect(transformCommandInvocations('/opsx:apply and /acme:deploy', FLAT_AT, 'acme')).toBe(
+        '/opsx:apply and @acme-deploy'
       );
     });
 
@@ -257,6 +256,19 @@ Then /openspec-apply-change to implement`;
       const input = '/opsx:bulk-archive and /opsx:archive';
       const expected = '/openspec-bulk-archive-change and /openspec-archive-change';
       expect(transformToSkillReferences(input)).toBe(expected);
+    });
+
+    it('uses explicitly supplied descriptors for an arbitrary command family', () => {
+      const acmeDescriptors = [
+        { namespace: 'acme', id: 'deploy', skillDirName: 'acme-deploy' },
+      ];
+      expect(
+        transformToSkillReferences(
+          '/acme:deploy and /acme:unknown and /opsx:apply',
+          'acme',
+          acmeDescriptors
+        )
+      ).toBe('/acme-deploy and /acme:unknown and /opsx:apply');
     });
   });
 });

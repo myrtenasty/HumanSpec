@@ -27,7 +27,7 @@
 - [x] 4.2 Add Windows path tests for both directory-namespaced and flat adapters, and retain equivalent macOS/Linux assertions
 - [x] 4.3 Extend command-generation, adapter, invocation, command-reference, tool-detection, init, and update focused test suites for non-default namespaces
 - [x] 4.4 Add parity coverage proving all existing OpenSpec generated command files and invocation text remain unchanged when namespace is omitted
-- [x] 4.5 Verify the path-sensitive suite in Windows CI
+- [ ] 4.5 Verify the path-sensitive suite in Windows CI
 
 ## 5. Stacking and release verification
 

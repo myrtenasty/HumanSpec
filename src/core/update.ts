@@ -11,7 +11,7 @@ import ora from 'ora';
 import * as fs from 'fs';
 import { createRequire } from 'module';
 import { FileSystemUtils } from '../utils/file-system.js';
-import { getSkillReferenceTransformer, getTransformerForTool, transformToSkillReferences } from '../utils/command-references.js';
+import { getSkillReferenceTransformer, getTransformerForTool } from '../utils/command-references.js';
 import { AI_TOOLS, OPENSPEC_DIR_NAME } from './config.js';
 import {
   generateCommands,
@@ -49,8 +49,9 @@ import {
 } from './profiles.js';
 import { readProjectConfig } from './project-config.js';
 import { resolveEffectiveProfile } from './effective-profile.js';
-import { getOnboardingCommands } from './onboarding-commands.js';
+import { getOnboardingCommands, type OnboardingCommand } from './onboarding-commands.js';
 import { getAvailableTools } from './available-tools.js';
+import { getCommandDescriptorForWorkflow } from './templates/command-descriptors.js';
 import {
   WORKFLOW_TO_SKILL_DIR,
   getConfiguredToolsForProfileSync,
@@ -281,7 +282,7 @@ export class UpdateCommand {
 
         // Generate skill files if delivery includes skills
         if (shouldGenerateSkills) {
-          for (const { template, dirName, namespace } of skillTemplates) {
+          for (const { template, dirName, namespace, workflowId } of skillTemplates) {
             const skillDir = path.join(skillsDir, dirName);
             const skillFile = path.join(skillDir, 'SKILL.md');
 
@@ -289,7 +290,7 @@ export class UpdateCommand {
               tool.value,
               delivery,
               resolveCommandSurfaceCapability(tool.value),
-              resolveCommandInvocation(tool.value),
+              resolveCommandInvocation(tool.value, getCommandDescriptorForWorkflow(workflowId)),
               namespace
             );
             const skillContent = generateSkillContent(template, OPENSPEC_VERSION, transformer);
@@ -391,22 +392,25 @@ export class UpdateCommand {
     // tools their documented skill invocation, and disagreements fall back to
     // naming the skill.
     if (newlyConfiguredTools.length > 0) {
-      const referenceFor = (command: string): string => {
-        const neutralForm = `the ${transformToSkillReferences(command).slice(1)} skill`;
+      const referenceFor = ({
+        command,
+        identity,
+        skillDirName,
+      }: OnboardingCommand): string => {
+        const neutralForm = `the ${skillDirName} skill`;
         const forms = new Set(
           newlyConfiguredTools.map((toolId) => {
             if (shouldGenerateCommandsForTool(toolId, delivery)) {
-              // Name the command the tool's files actually answer to:
-              // /opsx-<id> where the filename is the command name.
               const transformer = getTransformerForTool(
                 toolId,
                 delivery,
                 resolveCommandSurfaceCapability(toolId),
-                resolveCommandInvocation(toolId)
+                resolveCommandInvocation(toolId, identity),
+                identity.namespace
               );
               return transformer ? transformer(command) : command;
             }
-            return getSkillReferenceTransformer(toolId)(command);
+            return getSkillReferenceTransformer(toolId, identity.namespace)(command);
           })
         );
         return forms.size === 1 ? [...forms][0] : neutralForm;
@@ -421,7 +425,7 @@ export class UpdateCommand {
         ),
       ];
       const entries: Array<[string, string]> = getOnboardingCommands(installedWorkflows).map(
-        ({ command, description }) => [referenceFor(command), description]
+        (entry) => [referenceFor(entry), entry.description]
       );
       console.log();
       if (entries.length > 0) {
@@ -1026,7 +1030,7 @@ export class UpdateCommand {
 
         // Create skill files when delivery includes skills
         if (shouldGenerateSkills) {
-          for (const { template, dirName, namespace } of skillTemplates) {
+          for (const { template, dirName, namespace, workflowId } of skillTemplates) {
             const skillDir = path.join(skillsDir, dirName);
             const skillFile = path.join(skillDir, 'SKILL.md');
 
@@ -1034,7 +1038,7 @@ export class UpdateCommand {
               tool.value,
               delivery,
               resolveCommandSurfaceCapability(tool.value),
-              resolveCommandInvocation(tool.value),
+              resolveCommandInvocation(tool.value, getCommandDescriptorForWorkflow(workflowId)),
               namespace
             );
             const skillContent = generateSkillContent(template, OPENSPEC_VERSION, transformer);

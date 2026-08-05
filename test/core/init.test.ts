@@ -1464,6 +1464,19 @@ describe('InitCommand - humanspec profile', () => {
     expect(configContent).toContain('profile: humanspec');
   });
 
+  it('does not advertise a HumanSpec invocation for a tool that received zero artifacts', async () => {
+    saveGlobalConfig({ featureFlags: {}, profile: 'humanspec', delivery: 'commands' });
+    const initCommand = new InitCommand({ tools: 'kimi', force: true, profile: 'humanspec' });
+    await initCommand.execute(testDir);
+
+    const logCalls = (console.log as unknown as { mock: { calls: unknown[][] } }).mock.calls
+      .flat()
+      .map(String);
+    expect(logCalls.some((entry) => entry.includes('HumanSpec invocation:'))).toBe(false);
+    expect(logCalls.some((entry) => entry.includes('/skill:humanspec-propose'))).toBe(false);
+    expect(logCalls.some((entry) => entry.includes('No skills or commands were generated'))).toBe(true);
+  });
+
   it('keeps core compatibility: --profile core generates core artifacts and no humanspec dirs', async () => {
     saveGlobalConfig({ featureFlags: {}, profile: 'humanspec', delivery: 'both' });
     const initCommand = new InitCommand({ tools: 'claude', force: true, profile: 'core' });

@@ -26,6 +26,8 @@ import { serializeConfig } from './config-prompts.js';
 import {
   generateCommands,
   CommandAdapterRegistry,
+  CANONICAL_INVOCATION,
+  formatCommandInvocation,
 } from './command-generation/index.js';
 import {
   detectLegacyArtifacts,
@@ -57,6 +59,8 @@ import {
 } from './profiles.js';
 import { resolveEffectiveProfile, validateCliProfileOverride, type EffectiveProfile } from './effective-profile.js';
 import { getAvailableTools } from './available-tools.js';
+import { getCommandDescriptorForWorkflow } from './templates/command-descriptors.js';
+import { WORKFLOW_TO_SKILL_DIR } from './profile-sync-drift.js';
 import { migrateIfNeeded, migrateLegacyToolDirs, describeLegacyMigration, keptInPlaceNotice, hasMovableContent, scanInstalledWorkflows as scanInstalledWorkflowsShared } from './migration.js';
 import {
   resolveCommandSurfaceCapability,
@@ -79,28 +83,6 @@ const DEFAULT_SCHEMA = 'spec-driven';
 const PROGRESS_SPINNER = {
   interval: 80,
   frames: ['░░░', '▒░░', '▒▒░', '▒▒▒', '▓▒▒', '▓▓▒', '▓▓▓', '▒▓▓', '░▒▓'],
-};
-
-const WORKFLOW_TO_SKILL_DIR: Record<string, string> = {
-  'explore': 'openspec-explore',
-  'new': 'openspec-new-change',
-  'continue': 'openspec-continue-change',
-  'apply': 'openspec-apply-change',
-  'update': 'openspec-update-change',
-  'ff': 'openspec-ff-change',
-  'sync': 'openspec-sync-specs',
-  'archive': 'openspec-archive-change',
-  'bulk-archive': 'openspec-bulk-archive-change',
-  'verify': 'openspec-verify-change',
-  'onboard': 'openspec-onboard',
-  'propose': 'openspec-propose',
-  'humanspec-init': 'humanspec-init',
-  'humanspec-next': 'humanspec-next',
-  'humanspec-propose': 'humanspec-propose',
-  'humanspec-coach': 'humanspec-coach',
-  'humanspec-verify': 'humanspec-verify',
-  'humanspec-archive': 'humanspec-archive',
-  'humanspec-explore': 'humanspec-explore',
 };
 
 // -----------------------------------------------------------------------------
@@ -750,7 +732,7 @@ export class InitCommand {
           const skillsDir = path.join(projectPath, tool.skillsDir, 'skills');
 
           // Create skill directories and SKILL.md files
-          for (const { template, dirName, namespace } of skillTemplates) {
+          for (const { template, dirName, namespace, workflowId } of skillTemplates) {
             const skillDir = path.join(skillsDir, dirName);
             const skillFile = path.join(skillDir, 'SKILL.md');
 
@@ -762,7 +744,7 @@ export class InitCommand {
               tool.value,
               delivery,
               resolveCommandSurfaceCapability(tool.value),
-              resolveCommandInvocation(tool.value),
+              resolveCommandInvocation(tool.value, getCommandDescriptorForWorkflow(workflowId)),
               namespace
             );
             const skillContent = generateSkillContent(template, OPENSPEC_VERSION, transformer);
@@ -977,21 +959,33 @@ export class InitCommand {
           ? 'global config'
           : 'default (core)';
     console.log(`Profile: ${effective.profile} (source: ${sourceLabel})`);
-    if (effective.profile === 'humanspec' && successfulTools.length > 0) {
+    const activeDelivery: Delivery = getGlobalConfig().delivery ?? 'both';
+    const toolsWithArtifacts = successfulTools.filter(
+      (tool) =>
+        shouldGenerateCommandsForTool(tool.value, activeDelivery) ||
+        shouldGenerateSkillsForTool(tool.value, activeDelivery)
+    );
+    if (effective.profile === 'humanspec' && toolsWithArtifacts.length > 0) {
+      const proposeDescriptor = getCommandDescriptorForWorkflow('humanspec-propose')!;
+      const proposeCommand = formatCommandInvocation(
+        CANONICAL_INVOCATION,
+        proposeDescriptor.id,
+        proposeDescriptor.namespace
+      );
       const invocationForms = new Set(
-        successfulTools.map((tool) => {
+        toolsWithArtifacts.map((tool) => {
           const transformer = getTransformerForTool(
             tool.value,
-            getGlobalConfig().delivery ?? 'both',
+            activeDelivery,
             resolveCommandSurfaceCapability(tool.value),
-            resolveCommandInvocation(tool.value),
-            'humanspec'
+            resolveCommandInvocation(tool.value, proposeDescriptor),
+            proposeDescriptor.namespace
           );
-          return transformer ? transformer('/humanspec:propose') : '/humanspec:propose';
+          return transformer ? transformer(proposeCommand) : proposeCommand;
         })
       );
       console.log(
-        `HumanSpec commands: ${invocationForms.size === 1 ? [...invocationForms][0] : [...invocationForms].join(', ')} (propose a practice change)`
+        `HumanSpec invocation: ${invocationForms.size === 1 ? [...invocationForms][0] : [...invocationForms].join(', ')} (propose a practice change)`
       );
     }
 
@@ -1019,7 +1013,6 @@ export class InitCommand {
     const activeWorkflows = this.getActiveWorkflows();
     // When no tool got /opsx:* commands, point at the skill instead of a
     // command that does not exist.
-    const activeDelivery: Delivery = getGlobalConfig().delivery ?? 'both';
     const commandsGenerated = successfulTools.some((tool) => shouldGenerateCommandsForTool(tool.value, activeDelivery));
     const skillsGenerated = successfulTools.some((tool) => shouldGenerateSkillsForTool(tool.value, activeDelivery));
     // Each hint line must be a usable instruction for the tool it serves.
@@ -1031,7 +1024,16 @@ export class InitCommand {
     // covered by the configuration correction instead. When the selection
     // disagrees, print one line per distinct instruction, labeled with the
     // tools it applies to.
-    const startHintLines = (command: string, namespace?: string): string[] => {
+    const startHintLines = (workflowId: string): string[] => {
+      const descriptor = getCommandDescriptorForWorkflow(workflowId);
+      if (!descriptor) {
+        throw new Error(`Missing command descriptor for start hint workflow "${workflowId}"`);
+      }
+      const command = formatCommandInvocation(
+        CANONICAL_INVOCATION,
+        descriptor.id,
+        descriptor.namespace
+      );
       const hintToTools = new Map<string, string[]>();
       for (const tool of successfulTools) {
         let hint: string;
@@ -1040,19 +1042,18 @@ export class InitCommand {
             tool.value,
             activeDelivery,
             resolveCommandSurfaceCapability(tool.value),
-            resolveCommandInvocation(tool.value),
-            namespace
+            resolveCommandInvocation(tool.value, descriptor),
+            descriptor.namespace
           );
           hint = `Start your first change: ${transformer ? transformer(command) : command} "your idea"`;
         } else if (shouldGenerateSkillsForTool(tool.value, activeDelivery)) {
-          hint = `Start your first change: ${getSkillReferenceTransformer(tool.value, namespace)(command)} "your idea"`;
+          hint = `Start your first change: ${getSkillReferenceTransformer(tool.value, descriptor.namespace)(command)} "your idea"`;
         } else {
           continue;
         }
         hintToTools.set(hint, [...(hintToTools.get(hint) ?? []), tool.name]);
       }
       if (hintToTools.size === 0) {
-        // No successful tools: keep the generic command hint
         return [`Start your first change: ${command} "your idea"`];
       }
       if (hintToTools.size === 1) {
@@ -1060,9 +1061,9 @@ export class InitCommand {
       }
       return [...hintToTools.entries()].map(([hint, toolNames]) => `${hint} (${toolNames.join(', ')})`);
     };
-    const printStartHints = (command: string, namespace?: string): void => {
+    const printStartHints = (workflowId: string): void => {
       console.log(chalk.bold('Getting started:'));
-      for (const line of startHintLines(command, namespace)) {
+      for (const line of startHintLines(workflowId)) {
         console.log(`  ${line}`);
       }
     };
@@ -1090,11 +1091,11 @@ export class InitCommand {
       // Nothing was generated for any tool: the correction above is the
       // whole story, so don't advertise an invocation that doesn't exist.
     } else if (activeWorkflows.includes('humanspec-init')) {
-      printStartHints('/humanspec:init', 'humanspec');
+      printStartHints('humanspec-init');
     } else if (activeWorkflows.includes('propose')) {
-      printStartHints('/opsx:propose');
+      printStartHints('propose');
     } else if (activeWorkflows.includes('new')) {
-      printStartHints('/opsx:new');
+      printStartHints('new');
     } else {
       console.log("Done. Run 'openspec config profile' to configure your workflows.");
     }

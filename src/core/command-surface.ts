@@ -1,5 +1,6 @@
 import { CommandAdapterRegistry } from './command-generation/index.js';
 import { getInvocationForAdapter, type CommandInvocation } from './command-generation/invocation.js';
+import type { CommandIdentity } from './command-generation/identity.js';
 import type { Delivery } from './global-config.js';
 
 export type CommandSurfaceCapability = 'adapter-backed' | 'skills-invocable' | 'none';
@@ -9,9 +10,12 @@ export type CommandSurfaceCapability = 'adapter-backed' | 'skills-invocable' | '
  * its adapter writes, the prefix the adapter declares. Returns undefined for
  * tools with no command adapter, which have no command names to spell.
  */
-export function resolveCommandInvocation(toolId: string): CommandInvocation | undefined {
+export function resolveCommandInvocation(
+  toolId: string,
+  identity?: CommandIdentity
+): CommandInvocation | undefined {
   const adapter = CommandAdapterRegistry.get(toolId);
-  return adapter ? getInvocationForAdapter(adapter) : undefined;
+  return adapter ? getInvocationForAdapter(adapter, identity) : undefined;
 }
 
 export function resolveCommandSurfaceCapability(toolId: string): CommandSurfaceCapability {

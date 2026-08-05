@@ -1576,6 +1576,42 @@ ${OPENSPEC_MARKERS.end}
       expect(logCalls.some((entry) => entry.includes('/opsx:propose'))).toBe(false);
     });
 
+    it('should print HumanSpec hyphen commands when a legacy upgrade configures Cursor', async () => {
+      setMockConfig({ featureFlags: {}, profile: 'humanspec', delivery: 'both' });
+
+      const legacyDir = path.join(testDir, '.cursor', 'commands');
+      await fs.mkdir(legacyDir, { recursive: true });
+      await fs.writeFile(path.join(legacyDir, 'openspec-proposal.md'), 'legacy cursor command');
+
+      const consoleSpy = vi.spyOn(console, 'log');
+      await new UpdateCommand({ force: true }).execute(testDir);
+      const logCalls = consoleSpy.mock.calls.flat().map(String);
+      consoleSpy.mockRestore();
+
+      const proposeLines = logCalls.filter((entry) => entry.includes('Start a change'));
+      expect(proposeLines).toHaveLength(1);
+      expect(proposeLines[0]).toContain('/humanspec-propose');
+      expect(logCalls.some((entry) => entry.includes('/humanspec:propose'))).toBe(false);
+    });
+
+    it('should print HumanSpec @ commands when a legacy upgrade configures Amazon Q', async () => {
+      setMockConfig({ featureFlags: {}, profile: 'humanspec', delivery: 'both' });
+
+      const legacyDir = path.join(testDir, '.amazonq', 'prompts');
+      await fs.mkdir(legacyDir, { recursive: true });
+      await fs.writeFile(path.join(legacyDir, 'openspec-proposal.md'), 'legacy amazon prompt');
+
+      const consoleSpy = vi.spyOn(console, 'log');
+      await new UpdateCommand({ force: true }).execute(testDir);
+      const logCalls = consoleSpy.mock.calls.flat().map(String);
+      consoleSpy.mockRestore();
+
+      const proposeLines = logCalls.filter((entry) => entry.includes('Start a change'));
+      expect(proposeLines).toHaveLength(1);
+      expect(proposeLines[0]).toContain('@humanspec-propose');
+      expect(logCalls.some((entry) => entry.includes('/humanspec:propose'))).toBe(false);
+    });
+
     it('should preserve legacy Codex prompts when a configured Codex tool lacks the replacement workflow', async () => {
       setMockConfig({
         featureFlags: {},
@@ -1688,7 +1724,7 @@ ${OPENSPEC_MARKERS.end}
       const legacyCommandDir = path.join(testDir, '.claude', 'commands', 'openspec');
       await fs.mkdir(legacyCommandDir, { recursive: true });
       await fs.writeFile(
-        path.join(legacyCommandDir, 'old-command.md'),
+        path.join(legacyCommandDir, 'proposal.md'),
         'old command'
       );
 

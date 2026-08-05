@@ -7,8 +7,17 @@ import {
   COMMAND_IDS,
 } from '../../../src/core/shared/tool-detection.js';
 import { CommandAdapterRegistry } from '../../../src/core/command-generation/index.js';
+import { COMMAND_DESCRIPTORS } from '../../../src/core/templates/command-descriptors.js';
+import {
+  getCommandTemplates,
+  getSkillTemplates,
+} from '../../../src/core/shared/skill-generation.js';
 import { hasToolProfileOrDeliveryDrift, WORKFLOW_TO_SKILL_DIR } from '../../../src/core/profile-sync-drift.js';
-import { CORE_WORKFLOWS, HUMANSPEC_WORKFLOWS } from '../../../src/core/profiles.js';
+import {
+  CORE_WORKFLOWS,
+  HUMANSPEC_WORKFLOWS,
+  REGISTERED_WORKFLOWS,
+} from '../../../src/core/profiles.js';
 
 /** Action IDs of the humanspec command family, mirroring HUMANSPEC_WORKFLOWS. */
 const HUMANSPEC_ACTIONS = HUMANSPEC_WORKFLOWS.map((workflow) => workflow.replace('humanspec-', ''));
@@ -36,10 +45,43 @@ describe('managed command descriptors', () => {
     }
   });
 
-  it('mirrors COMMAND_IDS in order, followed by the humanspec family', () => {
+  it('derives every command projection from one canonical descriptor source', () => {
+    expect(MANAGED_COMMANDS).toEqual(
+      COMMAND_DESCRIPTORS.map(({ namespace, id, workflowId }) => ({
+        namespace,
+        id,
+        workflowId,
+      }))
+    );
+    expect(getCommandTemplates().map(({ namespace = 'opsx', id, workflowId }) => ({
+      namespace,
+      id,
+      workflowId,
+    }))).toEqual(MANAGED_COMMANDS);
+    expect(getSkillTemplates().map(({ namespace = 'opsx', dirName, workflowId }) => ({
+      namespace,
+      skillDirName: dirName,
+      workflowId,
+    }))).toEqual(
+      COMMAND_DESCRIPTORS.map(({ namespace, skillDirName, workflowId }) => ({
+        namespace,
+        skillDirName,
+        workflowId,
+      }))
+    );
     expect(MANAGED_COMMANDS.filter((d) => d.namespace === 'opsx').map((d) => d.id)).toEqual([...COMMAND_IDS]);
     expect(MANAGED_COMMANDS.filter((d) => d.namespace === 'humanspec').map((d) => d.id)).toEqual(
       HUMANSPEC_ACTIONS
+    );
+
+    expect(new Set(COMMAND_DESCRIPTORS.map((d) => `${d.namespace}:${d.id}`)).size).toBe(
+      COMMAND_DESCRIPTORS.length
+    );
+    expect(new Set(COMMAND_DESCRIPTORS.map((d) => d.workflowId)).size).toBe(
+      COMMAND_DESCRIPTORS.length
+    );
+    expect(new Set(COMMAND_DESCRIPTORS.map((d) => d.workflowId))).toEqual(
+      new Set(REGISTERED_WORKFLOWS)
     );
   });
 

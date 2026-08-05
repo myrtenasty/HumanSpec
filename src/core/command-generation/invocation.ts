@@ -24,7 +24,7 @@
 
 import path from 'path';
 import type { ToolCommandAdapter } from './types.js';
-import { DEFAULT_COMMAND_NAMESPACE } from './identity.js';
+import { DEFAULT_COMMAND_NAMESPACE, type CommandIdentity } from './identity.js';
 
 export type CommandInvocationStyle = 'namespaced' | 'flat';
 
@@ -54,14 +54,22 @@ export const CANONICAL_INVOCATION: CommandInvocation = { style: 'namespaced', pr
  *
  * @param commandFilePath - Path returned by an adapter's `getFilePath`
  * @param namespace - The resolved namespace of the command the path names
- * @returns 'flat' when the filename carries the `<namespace>-` prefix,
+ * @param commandId - When supplied, the resolved action ID used to distinguish
+ *        an exact flat filename from a similarly prefixed namespaced filename
+ * @returns 'flat' when the filename carries the exact `<namespace>-<id>` name,
  *          otherwise 'namespaced'
  */
 export function getInvocationStyleForPath(
   commandFilePath: string,
-  namespace: string = DEFAULT_COMMAND_NAMESPACE
+  namespace: string = DEFAULT_COMMAND_NAMESPACE,
+  commandId?: string
 ): CommandInvocationStyle {
-  return path.basename(commandFilePath).startsWith(`${namespace}-`) ? 'flat' : 'namespaced';
+  const basename = path.basename(commandFilePath);
+  const flatName = commandId === undefined ? `${namespace}-` : `${namespace}-${commandId}`;
+  const isFlat = commandId === undefined
+    ? basename.startsWith(flatName)
+    : basename === flatName || basename.startsWith(`${flatName}.`);
+  return isFlat ? 'flat' : 'namespaced';
 }
 
 /**
@@ -69,17 +77,19 @@ export function getInvocationStyleForPath(
  * files its adapter writes, the prefix from the adapter's own declaration.
  *
  * @param adapter - The tool-specific command adapter
- * @param namespace - The namespace to classify the adapter's path by,
- *        defaulting to the OpenSpec default
- * @returns The invocation shared by every command that adapter generates
+ * @param identity - The resolved identity whose actual path determines style
+ * @returns The invocation for that generated command identity
  */
 export function getInvocationForAdapter(
   adapter: ToolCommandAdapter,
-  namespace: string = DEFAULT_COMMAND_NAMESPACE
+  identity: CommandIdentity = { namespace: DEFAULT_COMMAND_NAMESPACE, id: 'explore' }
 ): CommandInvocation {
   return {
-    // Any command id works: every adapter applies one naming rule to all of them.
-    style: getInvocationStyleForPath(adapter.getFilePath({ namespace, id: 'explore' }), namespace),
+    style: getInvocationStyleForPath(
+      adapter.getFilePath(identity),
+      identity.namespace,
+      identity.id
+    ),
     prefix: adapter.invocationPrefix ?? CANONICAL_INVOCATION.prefix,
   };
 }

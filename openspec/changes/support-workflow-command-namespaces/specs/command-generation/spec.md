@@ -38,7 +38,7 @@ The system SHALL define a `ToolCommandAdapter` interface for formatting a resolv
 - **THEN** `ToolCommandAdapter` SHALL require:
   - `toolId`: string identifier matching `AIToolOption.value`
   - `getFilePath(identity: CommandIdentity)`: returns the command path using the supplied namespace and ID, relative from the project root or absolute for a global-scoped tool
-  - `formatFile(content: CommandContent)`: returns complete file content with frontmatter
+  - `formatFile(content: CommandContent)`: returns complete tool-native file content, including frontmatter when the tool's format uses it
 
 #### Scenario: Claude adapter formatting
 
@@ -52,11 +52,11 @@ The system SHALL define a `ToolCommandAdapter` interface for formatting a resolv
 - **THEN** the adapter SHALL output YAML frontmatter whose displayed command name is `/<namespace>-<id>` together with its existing metadata fields
 - **AND** the file path SHALL follow `.cursor/commands/<namespace>-<id>.md` using valid platform path separators
 
-#### Scenario: Windsurf-compatible adapter formatting
+#### Scenario: Devin Desktop adapter formatting
 
-- **WHEN** formatting command `{ namespace: "<namespace>", id: "<id>" }` for a Windsurf-compatible workflow adapter
+- **WHEN** formatting command `{ namespace: "<namespace>", id: "<id>" }` for Devin Desktop
 - **THEN** the adapter SHALL retain its existing frontmatter fields
-- **AND** the file path SHALL follow `.windsurf/workflows/<namespace>-<id>.md` using valid platform path separators
+- **AND** the file path SHALL follow `.devin/workflows/<namespace>-<id>.md` using valid platform path separators
 
 #### Scenario: Trae adapter formatting
 
@@ -120,3 +120,26 @@ The body content of a command SHALL be shared across tools while retaining the c
 
 - **WHEN** a command body contains a reference whose namespace differs from the command descriptor's namespace
 - **THEN** generation SHALL leave that reference unchanged unless the caller supplies an explicit descriptor for transforming that command family
+
+### Requirement: Managed command enumeration
+
+The system SHALL derive generated command content, detection, drift checks, migration, and cleanup from one canonical descriptor source containing workflow ID, namespace, and command ID.
+
+#### Scenario: Missing command is detected by workflow identity
+
+- **WHEN** a selected workflow's command file is absent
+- **THEN** profile synchronization SHALL report drift using the descriptor's workflow identity
+- **AND** command action IDs that overlap across namespaces SHALL not affect the result
+
+#### Scenario: Cleanup preserves unregistered command paths
+
+- **WHEN** init or update encounters a similarly named command path whose namespace and ID are not an explicitly registered managed or legacy identity
+- **THEN** cleanup SHALL preserve the file and its containing directory
+- **AND** cleanup SHALL delete only exact registered legacy command paths
+- **AND** cleanup SHALL not follow symlinks or Windows junctions outside the project
+
+#### Scenario: Legacy directory contains user content
+
+- **WHEN** a legacy command directory contains both exact managed legacy files and unrelated user content
+- **THEN** cleanup SHALL delete the managed files individually
+- **AND** preserve the directory and unrelated content

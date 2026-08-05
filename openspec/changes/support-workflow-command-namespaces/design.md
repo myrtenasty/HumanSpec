@@ -72,7 +72,9 @@ Reference transformation receives the resolved namespace and rewrites canonical 
 
 Detection, drift checks, init/update cleanup, and migration code obtain exact paths by iterating registered command descriptors and calling the adapter. They do not discover namespaces through filename globs or regular expressions. Generated command families are therefore deleted or refreshed only when their namespace and ID appear in the managed descriptor list; unrelated user files remain untouched.
 
-Until `WorkflowManifest` lands, existing arrays and mappings remain the registration source and gain the namespace field where needed. Parity tests assert that the command descriptor list, projections, detection, and cleanup enumerate the same identities. A later migration can move the descriptors into the manifest without changing their shape or generated paths.
+Project-local legacy cleanup follows the same exact-identity rule. Historical names are represented by a pinned, finite allowlist reconstructed from the action IDs and layouts each old generator actually shipped; future command registrations cannot expand deletion authority. Cleanup rejects symlinks and Windows junctions, deletes validated files individually, revalidates paths before deletion, and removes a legacy directory only when it is empty; unrelated files and non-empty directories are preserved.
+
+Until `WorkflowManifest` lands, one canonical command descriptor array owns workflow ID, namespace, command ID, skill directory name, and command template factory. Command generation, reference transformation, detection, drift, cleanup, and migration consume projections of that array rather than maintaining parallel registries. A later migration can move these descriptors into the manifest without changing their shape or generated paths.
 
 ## Risks / Trade-offs
 

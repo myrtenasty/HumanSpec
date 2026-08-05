@@ -16,6 +16,7 @@ import {
 import { WORKFLOW_TO_SKILL_DIR } from './profile-sync-drift.js';
 import { MANAGED_COMMANDS } from './shared/tool-detection.js';
 import { REGISTERED_WORKFLOWS } from './profiles.js';
+import { getCommandDescriptorForWorkflow } from './templates/command-descriptors.js';
 import { getSkillReferenceTransformer, getTransformerForTool } from '../utils/command-references.js';
 import path from 'path';
 import * as fs from 'fs';
@@ -484,6 +485,7 @@ export function migrateIfNeeded(projectPath: string, tools: AIToolOption[]): voi
   // mixed with skill-only tools — stay syntax-neutral rather than advertise a
   // form that is wrong for one of them.
   const effectiveDelivery: Delivery = config.delivery ?? 'both';
+  const proposeDescriptor = getCommandDescriptorForWorkflow('propose')!;
   const proposeReferences = new Set(
     tools.map((tool) => {
       if (shouldGenerateCommandsForTool(tool.value, effectiveDelivery)) {
@@ -491,7 +493,7 @@ export function migrateIfNeeded(projectPath: string, tools: AIToolOption[]): voi
           tool.value,
           effectiveDelivery,
           resolveCommandSurfaceCapability(tool.value),
-          resolveCommandInvocation(tool.value)
+          resolveCommandInvocation(tool.value, proposeDescriptor)
         );
         return transformer ? transformer('/opsx:propose') : '/opsx:propose';
       }

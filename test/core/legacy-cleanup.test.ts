@@ -369,24 +369,28 @@ ${OPENSPEC_MARKERS.end}`);
       expect(result.files).toContain('.opencode/command/opsx-propose.md');
     });
 
-    it('should detect legacy OpenCode openspec-* command files', async () => {
+    it('should detect exact pre-opsx OpenCode command files', async () => {
       const dirPath = path.join(testDir, '.opencode', 'command');
       await fs.mkdir(dirPath, { recursive: true });
-      await fs.writeFile(path.join(dirPath, 'openspec-new.md'), 'content');
+      await fs.writeFile(path.join(dirPath, 'openspec-proposal.md'), 'content');
+      await fs.writeFile(path.join(dirPath, 'openspec-new.md'), 'user command');
 
       const result = await detectLegacySlashCommands(testDir);
-      expect(result.files).toContain('.opencode/command/openspec-new.md');
+      expect(result.files).toContain('.opencode/command/openspec-proposal.md');
+      expect(result.files).not.toContain('.opencode/command/openspec-new.md');
     });
 
-    it('should detect both opsx-* and openspec-* OpenCode command files', async () => {
+    it('should detect exact opsx and openspec OpenCode command files only', async () => {
       const dirPath = path.join(testDir, '.opencode', 'command');
       await fs.mkdir(dirPath, { recursive: true });
       await fs.writeFile(path.join(dirPath, 'opsx-propose.md'), 'content');
-      await fs.writeFile(path.join(dirPath, 'openspec-new.md'), 'content');
+      await fs.writeFile(path.join(dirPath, 'openspec-proposal.md'), 'content');
+      await fs.writeFile(path.join(dirPath, 'opsx-review.md'), 'user command');
 
       const result = await detectLegacySlashCommands(testDir);
       expect(result.files).toContain('.opencode/command/opsx-propose.md');
-      expect(result.files).toContain('.opencode/command/openspec-new.md');
+      expect(result.files).toContain('.opencode/command/openspec-proposal.md');
+      expect(result.files).not.toContain('.opencode/command/opsx-review.md');
     });
 
     it('should not include managed global Codex prompt files in repo-local slash command detection', async () => {
@@ -594,6 +598,78 @@ ${OPENSPEC_MARKERS.end}`);
 
       expect(result.deletedFiles).toContain('.cursor/commands/openspec-proposal.md');
       await expect(fs.access(filePath)).rejects.toThrow();
+    });
+
+    it('preserves similarly named user files that are not exact legacy identities', async () => {
+      const dirPath = path.join(testDir, '.opencode', 'command');
+      const userFile = path.join(dirPath, 'opsx-review.md');
+      await fs.mkdir(dirPath, { recursive: true });
+      await fs.writeFile(userFile, 'user command');
+
+      const detection = await detectLegacyArtifacts(testDir);
+      const result = await cleanupLegacyArtifacts(testDir, detection);
+
+      expect(detection.slashCommandFiles).not.toContain('.opencode/command/opsx-review.md');
+      expect(result.deletedFiles).not.toContain('.opencode/command/opsx-review.md');
+      await expect(fs.readFile(userFile, 'utf-8')).resolves.toBe('user command');
+    });
+
+    it('deletes managed children individually and preserves non-empty legacy directories', async () => {
+      const dirPath = path.join(testDir, '.claude', 'commands', 'openspec');
+      const managedFile = path.join(dirPath, 'proposal.md');
+      const userFile = path.join(dirPath, 'notes.md');
+      const userDir = path.join(dirPath, 'examples');
+      await fs.mkdir(userDir, { recursive: true });
+      await fs.writeFile(managedFile, 'managed');
+      await fs.writeFile(userFile, 'user notes');
+      await fs.writeFile(path.join(userDir, 'custom.md'), 'user example');
+
+      const detection = await detectLegacyArtifacts(testDir);
+      const result = await cleanupLegacyArtifacts(testDir, detection);
+
+      await expect(fs.access(managedFile)).rejects.toThrow();
+      await expect(fs.readFile(userFile, 'utf-8')).resolves.toBe('user notes');
+      await expect(fs.readFile(path.join(userDir, 'custom.md'), 'utf-8')).resolves.toBe('user example');
+      await expect(fs.access(dirPath)).resolves.not.toThrow();
+      expect(result.deletedDirs).not.toContain('.claude/commands/openspec');
+    });
+
+    it('revalidates injected detection paths before deleting', async () => {
+      const userFile = path.join(testDir, '.cursor', 'commands', 'personal.md');
+      await fs.mkdir(path.dirname(userFile), { recursive: true });
+      await fs.writeFile(userFile, 'user command');
+      const detection = await detectLegacyArtifacts(testDir);
+      detection.slashCommandFiles.push('.cursor/commands/personal.md');
+
+      const result = await cleanupLegacyArtifacts(testDir, detection);
+
+      expect(result.deletedFiles).not.toContain('.cursor/commands/personal.md');
+      await expect(fs.readFile(userFile, 'utf-8')).resolves.toBe('user command');
+    });
+
+    it('never follows a symlink or Windows junction outside the project', async () => {
+      const outsideDir = await fs.mkdtemp(path.join(os.tmpdir(), 'openspec-legacy-outside-'));
+      const outsideFile = path.join(outsideDir, 'proposal.md');
+      const linkParent = path.join(testDir, '.claude', 'commands');
+      const linkedLegacyDir = path.join(linkParent, 'openspec');
+      await fs.mkdir(linkParent, { recursive: true });
+      await fs.writeFile(outsideFile, 'external user file');
+
+      try {
+        await fs.symlink(outsideDir, linkedLegacyDir, process.platform === 'win32' ? 'junction' : 'dir');
+        const detection = await detectLegacyArtifacts(testDir);
+        expect(detection.slashCommandFiles).not.toContain('.claude/commands/openspec/proposal.md');
+
+        detection.slashCommandFiles.push('.claude/commands/openspec/proposal.md');
+        detection.slashCommandDirs.push('.claude/commands/openspec');
+        const result = await cleanupLegacyArtifacts(testDir, detection);
+
+        expect(result.deletedFiles).not.toContain('.claude/commands/openspec/proposal.md');
+        await expect(fs.readFile(outsideFile, 'utf-8')).resolves.toBe('external user file');
+        await expect(fs.lstat(linkedLegacyDir)).resolves.toBeDefined();
+      } finally {
+        await fs.rm(outsideDir, { recursive: true, force: true });
+      }
     });
 
     it('should delete openspec/AGENTS.md', async () => {
@@ -1098,40 +1174,41 @@ ${OPENSPEC_MARKERS.end}`);
   });
 
   describe('LEGACY_SLASH_COMMAND_PATHS', () => {
-    it('should include expected tool patterns', () => {
-      expect(LEGACY_SLASH_COMMAND_PATHS['claude']).toEqual({
-        type: 'directory',
-        path: '.claude/commands/openspec',
-      });
+    it('defines exact historical filenames instead of wildcard patterns', () => {
+      const claude = LEGACY_SLASH_COMMAND_PATHS.find(
+        (family) => family.toolId === 'claude' && family.directory === '.claude/commands/openspec'
+      );
+      expect(claude?.fileNames).toEqual(['proposal.md', 'apply.md', 'archive.md']);
+      expect(claude?.removeDirectoryIfEmpty).toBe(true);
 
-      expect(LEGACY_SLASH_COMMAND_PATHS['cursor']).toEqual({
-        type: 'files',
-        pattern: '.cursor/commands/openspec-*.md',
-      });
+      const cursor = LEGACY_SLASH_COMMAND_PATHS.find(
+        (family) => family.toolId === 'cursor' && family.directory === '.cursor/commands'
+      );
+      expect(cursor?.fileNames).toContain('openspec-proposal.md');
+      expect(cursor?.fileNames).not.toContain('openspec-new.md');
 
-      expect(LEGACY_SLASH_COMMAND_PATHS['devin']).toEqual({
-        type: 'files',
-        pattern: '.windsurf/workflows/openspec-*.md',
-      });
+      expect(
+        LEGACY_SLASH_COMMAND_PATHS.flatMap((family) => family.fileNames).some((name) => name.includes('*'))
+      ).toBe(false);
     });
 
     it('should only include legacy tool IDs with a command surface capability', () => {
       const registeredTools = new Set(CommandAdapterRegistry.getAll().map(adapter => adapter.toolId));
 
-      for (const tool of Object.keys(LEGACY_SLASH_COMMAND_PATHS)) {
-        expect(registeredTools.has(tool) || resolveCommandSurfaceCapability(tool) === 'skills-invocable').toBe(true);
+      for (const { toolId } of LEGACY_SLASH_COMMAND_PATHS) {
+        expect(registeredTools.has(toolId) || resolveCommandSurfaceCapability(toolId) === 'skills-invocable').toBe(true);
       }
 
-      // Pi was never a pre-1.0 legacy tool
-      expect(LEGACY_SLASH_COMMAND_PATHS).not.toHaveProperty('pi');
+      expect(LEGACY_SLASH_COMMAND_PATHS.some((family) => family.toolId === 'pi')).toBe(false);
+      expect(LEGACY_SLASH_COMMAND_PATHS.some((family) => family.toolId === 'junie')).toBe(false);
     });
 
-    it('should use the repo-local compatibility glob pattern for Codex prompt detection', () => {
-      const codexPatterns = LEGACY_SLASH_COMMAND_PATHS['codex'];
-      expect(codexPatterns.type).toBe('files');
-      const patterns = Array.isArray(codexPatterns.pattern) ? codexPatterns.pattern : [codexPatterns.pattern];
-      expect(patterns).toContain('.codex/prompts/openspec-*.md');
-      expect(patterns).not.toContain('.codex/prompts/opsx-*.md');
+    it('uses an exact obsolete project-local Codex allowlist', () => {
+      const codex = LEGACY_SLASH_COMMAND_PATHS.find((family) => family.toolId === 'codex');
+      expect(codex?.directory).toBe('.codex/prompts');
+      expect(codex?.fileNames).toContain('opsx-explore.md');
+      expect(codex?.fileNames).not.toContain('opsx-update.md');
+      expect(codex?.fileNames).not.toContain('openspec-proposal.md');
     });
   });
 
@@ -1365,7 +1442,7 @@ ${OPENSPEC_MARKERS.end}`);
         configFiles: [],
         configFilesToUpdate: [],
         slashCommandDirs: [],
-        slashCommandFiles: ['.opencode/command/openspec-new.md'],
+        slashCommandFiles: ['.opencode/command/openspec-proposal.md'],
         globalSlashCommandFiles: [],
         hasOpenspecAgents: false,
         hasProjectMd: false,
@@ -1385,7 +1462,7 @@ ${OPENSPEC_MARKERS.end}`);
         slashCommandDirs: [],
         slashCommandFiles: [
           '.opencode/command/opsx-propose.md',
-          '.opencode/command/openspec-new.md',
+          '.opencode/command/openspec-proposal.md',
         ],
         globalSlashCommandFiles: [],
         hasOpenspecAgents: false,

@@ -34,7 +34,7 @@ export function generateCommand(
   adapter: ToolCommandAdapter
 ): GeneratedCommand {
   const identity = resolveCommandIdentity(content);
-  const invocation = getInvocationForAdapter(adapter, identity.namespace);
+  const invocation = getInvocationForAdapter(adapter, identity);
   const resolvedContent = {
     ...content,
     namespace: identity.namespace,

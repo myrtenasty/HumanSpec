@@ -10,10 +10,18 @@
  * src/utils/command-references.ts at the call site.
  */
 
+import type { CommandIdentity } from './command-generation/identity.js';
+import {
+  CANONICAL_INVOCATION,
+  formatCommandInvocation,
+} from './command-generation/invocation.js';
+import { getCommandDescriptorForWorkflow } from './templates/command-descriptors.js';
 import type { WorkflowId } from './profiles.js';
 
 export type OnboardingCommand = {
   workflow: WorkflowId;
+  identity: CommandIdentity;
+  skillDirName: string;
   command: string;
   description: string;
 };
@@ -32,18 +40,37 @@ export const DESCRIPTION_BUDGET = 17;
  * then implement. HumanSpec workflows follow the practice lifecycle: init,
  * next, propose, coach, verify, archive, explore.
  */
+function defineOnboardingCommand(
+  workflow: WorkflowId,
+  description: string
+): OnboardingCommand {
+  const descriptor = getCommandDescriptorForWorkflow(workflow);
+  if (!descriptor) {
+    throw new Error(`Missing command descriptor for onboarding workflow "${workflow}"`);
+  }
+
+  const identity = { namespace: descriptor.namespace, id: descriptor.id };
+  return {
+    workflow,
+    identity,
+    skillDirName: descriptor.skillDirName,
+    command: formatCommandInvocation(CANONICAL_INVOCATION, identity.id, identity.namespace),
+    description,
+  };
+}
+
 const ONBOARDING_COMMANDS: readonly OnboardingCommand[] = [
-  { workflow: 'propose', command: '/opsx:propose', description: 'Start a change' },
-  { workflow: 'new', command: '/opsx:new', description: 'Scaffold a change' },
-  { workflow: 'continue', command: '/opsx:continue', description: 'Next artifact' },
-  { workflow: 'apply', command: '/opsx:apply', description: 'Implement tasks' },
-  { workflow: 'humanspec-init', command: '/humanspec:init', description: 'Set up project' },
-  { workflow: 'humanspec-next', command: '/humanspec:next', description: 'Pick a change' },
-  { workflow: 'humanspec-propose', command: '/humanspec:propose', description: 'Start a change' },
-  { workflow: 'humanspec-coach', command: '/humanspec:coach', description: 'Get coaching' },
-  { workflow: 'humanspec-verify', command: '/humanspec:verify', description: 'Verify work' },
-  { workflow: 'humanspec-archive', command: '/humanspec:archive', description: 'Archive change' },
-  { workflow: 'humanspec-explore', command: '/humanspec:explore', description: 'Explore ideas' },
+  defineOnboardingCommand('propose', 'Start a change'),
+  defineOnboardingCommand('new', 'Scaffold a change'),
+  defineOnboardingCommand('continue', 'Next artifact'),
+  defineOnboardingCommand('apply', 'Implement tasks'),
+  defineOnboardingCommand('humanspec-init', 'Set up project'),
+  defineOnboardingCommand('humanspec-next', 'Pick a change'),
+  defineOnboardingCommand('humanspec-propose', 'Start a change'),
+  defineOnboardingCommand('humanspec-coach', 'Get coaching'),
+  defineOnboardingCommand('humanspec-verify', 'Verify work'),
+  defineOnboardingCommand('humanspec-archive', 'Archive change'),
+  defineOnboardingCommand('humanspec-explore', 'Explore ideas'),
 ];
 
 /**

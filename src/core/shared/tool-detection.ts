@@ -8,6 +8,7 @@ import path from 'path';
 import * as fs from 'fs';
 import { AI_TOOLS } from '../config.js';
 import { CommandAdapterRegistry, generateCommands, DEFAULT_COMMAND_NAMESPACE } from '../command-generation/index.js';
+import { COMMAND_DESCRIPTORS } from '../templates/command-descriptors.js';
 import { getCommandContents } from './skill-generation.js';
 import { getGlobalConfig } from '../global-config.js';
 import { getProfileWorkflows, isRegisteredWorkflow, REGISTERED_WORKFLOWS, type RegisteredWorkflowId } from '../profiles.js';
@@ -15,51 +16,19 @@ import { getProfileWorkflows, isRegisteredWorkflow, REGISTERED_WORKFLOWS, type R
 /**
  * Names of skill directories created by openspec init.
  *
- * The seven humanspec-<action> entries are the HumanSpec profile's skill
- * registrations; they stay in this explicit list until
- * `unify-template-generation-pipeline` introduces a workflow manifest.
+ * Derived from the canonical command descriptors so skill detection and
+ * command management cannot drift apart while awaiting WorkflowManifest.
  */
-export const SKILL_NAMES = [
-  'openspec-explore',
-  'openspec-new-change',
-  'openspec-continue-change',
-  'openspec-apply-change',
-  'openspec-update-change',
-  'openspec-ff-change',
-  'openspec-sync-specs',
-  'openspec-archive-change',
-  'openspec-bulk-archive-change',
-  'openspec-verify-change',
-  'openspec-onboard',
-  'openspec-propose',
-  'humanspec-init',
-  'humanspec-next',
-  'humanspec-propose',
-  'humanspec-coach',
-  'humanspec-verify',
-  'humanspec-archive',
-  'humanspec-explore',
-] as const;
+export const SKILL_NAMES = COMMAND_DESCRIPTORS.map((descriptor) => descriptor.skillDirName);
 
 export type SkillName = (typeof SKILL_NAMES)[number];
 
 /**
- * IDs of command templates created by openspec init.
+ * IDs of default-namespace command templates created by openspec init.
  */
-export const COMMAND_IDS = [
-  'explore',
-  'new',
-  'continue',
-  'apply',
-  'update',
-  'ff',
-  'sync',
-  'archive',
-  'bulk-archive',
-  'verify',
-  'onboard',
-  'propose',
-] as const;
+export const COMMAND_IDS = COMMAND_DESCRIPTORS
+  .filter((descriptor) => descriptor.namespace === DEFAULT_COMMAND_NAMESPACE)
+  .map((descriptor) => descriptor.id);
 
 export type CommandId = (typeof COMMAND_IDS)[number];
 
@@ -85,40 +54,12 @@ export interface ManagedCommandDescriptor {
 }
 
 /**
- * Action IDs of the HumanSpec command family, mirroring HUMANSPEC_WORKFLOWS.
+ * Compatibility projection consumed by detection, drift, cleanup, and
+ * migration. Registration itself lives in COMMAND_DESCRIPTORS.
  */
-const HUMANSPEC_COMMAND_IDS = [
-  'init',
-  'next',
-  'propose',
-  'coach',
-  'verify',
-  'archive',
-  'explore',
-] as const;
-
-/**
- * Every command OpenSpec manages, as explicit namespace/ID descriptors.
- * This list is the registration source until a workflow manifest owns it
- * (`unify-template-generation-pipeline`): a later migration can move these
- * descriptors into the manifest without changing their shape or the paths
- * they generate.
- */
-export const MANAGED_COMMANDS: ManagedCommandDescriptor[] = [
-  ...COMMAND_IDS.map((id) => ({
-    namespace: DEFAULT_COMMAND_NAMESPACE,
-    id,
-    workflowId: id,
-  })),
-  // HumanSpec command registrations: the `humanspec` namespace with action
-  // IDs init, next, propose, coach, verify, archive, explore. Each maps to
-  // its humanSpec workflow ID so profile selection drives cleanup exactly.
-  ...HUMANSPEC_COMMAND_IDS.map((id) => ({
-    namespace: 'humanspec',
-    id,
-    workflowId: `humanspec-${id}` as RegisteredWorkflowId,
-  })),
-];
+export const MANAGED_COMMANDS: ManagedCommandDescriptor[] = COMMAND_DESCRIPTORS.map(
+  ({ namespace, id, workflowId }) => ({ namespace, id, workflowId })
+);
 
 /**
  * Status of skill configuration for a tool.

@@ -95,11 +95,9 @@ describe('HumanSpec registration parity', () => {
     }
   });
 
-  it('the reference rewriter knows exactly the seven HumanSpec commands', () => {
-    // The command-reference rewriter (src/utils/command-references.ts) must
-    // agree with the registration lists: every HumanSpec action rewrites to
-    // its skill name, and OpenSpec-only actions like `apply` stay untouched
-    // inside the humanspec namespace.
+  it('the reference rewriter projects commands generically and skills from descriptors', () => {
+    // Command surfaces can project any valid action in the declared family;
+    // skill references remain limited to explicitly registered descriptors.
     const flat = getInvocationForAdapter(CommandAdapterRegistry.get('cursor')!);
     for (const workflow of HUMANSPEC_WORKFLOWS) {
       const action = workflow.replace('humanspec-', '');
@@ -111,6 +109,9 @@ describe('HumanSpec registration parity', () => {
       );
     }
     expect(transformCommandInvocations('/humanspec:apply', flat, 'humanspec')).toBe(
+      '/humanspec-apply'
+    );
+    expect(transformToSkillReferences('/humanspec:apply', 'humanspec')).toBe(
       '/humanspec:apply'
     );
   });

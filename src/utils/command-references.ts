@@ -16,6 +16,15 @@ import {
   needsInvocationRewrite,
 } from '../core/command-generation/invocation.js';
 import { DEFAULT_COMMAND_NAMESPACE } from '../core/command-generation/identity.js';
+import {
+  COMMAND_DESCRIPTORS,
+  type WorkflowCommandDescriptor,
+} from '../core/templates/command-descriptors.js';
+
+export type CommandReferenceDescriptor = Pick<
+  WorkflowCommandDescriptor,
+  'namespace' | 'id' | 'skillDirName'
+>;
 
 /**
  * Rewrites the canonical `/<namespace>:<command>` references that command
@@ -25,11 +34,6 @@ import { DEFAULT_COMMAND_NAMESPACE } from '../core/command-generation/identity.j
  * library. Only references belonging to the given namespace family are
  * rewritten; references to other namespaces are left unchanged unless the
  * caller supplies their own descriptor.
- *
- * Only known command ids are rewritten, matching how
- * `transformToSkillReferences` leaves unrecognized references alone, so a
- * mistyped or invented `/<namespace>:<something>` is left as written rather
- * than silently reshaped into a command that does not exist either.
  *
  * @param text - The text containing command references
  * @param invocation - The tool's invocation, from resolveCommandInvocation()
@@ -49,54 +53,19 @@ export function transformCommandInvocations(
 ): string {
   const escapedNamespace = namespace.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   return text.replace(
-    new RegExp(`\\/${escapedNamespace}:([a-z-]+)`, 'g'),
-    (match, commandId: string) =>
-      skillNameForCommand(namespace, commandId) !== undefined
-        ? formatCommandInvocation(invocation, commandId, namespace)
-        : match
+    new RegExp(`\\/${escapedNamespace}:([a-z0-9][a-z0-9-]*)`, 'g'),
+    (_match, commandId: string) => formatCommandInvocation(invocation, commandId, namespace)
   );
 }
 
-/**
- * Maps OpenSpec command short names to their skill names.
- * Keep in sync with WORKFLOW_TO_SKILL_DIR, which exists in both
- * src/core/profile-sync-drift.ts (exported) and src/core/init.ts (local copy).
- */
-const COMMAND_TO_SKILL_NAME: Record<string, string> = {
-  'explore': 'openspec-explore',
-  'new': 'openspec-new-change',
-  'continue': 'openspec-continue-change',
-  'apply': 'openspec-apply-change',
-  'update': 'openspec-update-change',
-  'ff': 'openspec-ff-change',
-  'sync': 'openspec-sync-specs',
-  'archive': 'openspec-archive-change',
-  'bulk-archive': 'openspec-bulk-archive-change',
-  'verify': 'openspec-verify-change',
-  'onboard': 'openspec-onboard',
-  'propose': 'openspec-propose',
-};
-
-/**
- * Maps HumanSpec command action names to their skill names. Keyed by the
- * action ID (`init`, `next`, ...) and used only when rewriting references
- * in the `humanspec` namespace, so the `propose` action maps to the
- * humanspec-propose skill rather than the OpenSpec one.
- */
-const HUMANSPEC_COMMAND_TO_SKILL_NAME: Record<string, string> = {
-  'init': 'humanspec-init',
-  'next': 'humanspec-next',
-  'propose': 'humanspec-propose',
-  'coach': 'humanspec-coach',
-  'verify': 'humanspec-verify',
-  'archive': 'humanspec-archive',
-  'explore': 'humanspec-explore',
-};
-
-function skillNameForCommand(namespace: string, commandId: string): string | undefined {
-  return namespace === 'humanspec'
-    ? HUMANSPEC_COMMAND_TO_SKILL_NAME[commandId]
-    : COMMAND_TO_SKILL_NAME[commandId];
+function descriptorForReference(
+  namespace: string,
+  commandId: string,
+  descriptors: readonly CommandReferenceDescriptor[]
+): CommandReferenceDescriptor | undefined {
+  return descriptors.find(
+    (descriptor) => descriptor.namespace === namespace && descriptor.id === commandId
+  );
 }
 
 /**
@@ -113,13 +82,17 @@ const SKILL_INVOCATION_PREFIX: Record<string, string> = {
 function replaceCommandsWithSkillReferences(
   text: string,
   prefix: string,
-  namespace: string = DEFAULT_COMMAND_NAMESPACE
+  namespace: string = DEFAULT_COMMAND_NAMESPACE,
+  descriptors: readonly CommandReferenceDescriptor[] = COMMAND_DESCRIPTORS
 ): string {
   const escapedNamespace = namespace.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  return text.replace(new RegExp(`\\/${escapedNamespace}:([a-z-]+)`, 'g'), (match, commandId: string) => {
-    const skillName = skillNameForCommand(namespace, commandId);
-    return skillName === undefined ? match : `${prefix}${skillName}`;
-  });
+  return text.replace(
+    new RegExp(`\\/${escapedNamespace}:([a-z0-9][a-z0-9-]*)`, 'g'),
+    (match, commandId: string) => {
+      const descriptor = descriptorForReference(namespace, commandId, descriptors);
+      return descriptor === undefined ? match : `${prefix}${descriptor.skillDirName}`;
+    }
+  );
 }
 
 /**
@@ -143,9 +116,10 @@ function replaceCommandsWithSkillReferences(
  */
 export function transformToSkillReferences(
   text: string,
-  namespace: string = DEFAULT_COMMAND_NAMESPACE
+  namespace: string = DEFAULT_COMMAND_NAMESPACE,
+  descriptors: readonly CommandReferenceDescriptor[] = COMMAND_DESCRIPTORS
 ): string {
-  return replaceCommandsWithSkillReferences(text, '/', namespace);
+  return replaceCommandsWithSkillReferences(text, '/', namespace, descriptors);
 }
 
 /**
@@ -160,17 +134,18 @@ export function transformToSkillReferences(
  */
 export function getSkillReferenceTransformer(
   toolId: string,
-  namespace: string = DEFAULT_COMMAND_NAMESPACE
+  namespace: string = DEFAULT_COMMAND_NAMESPACE,
+  descriptors: readonly CommandReferenceDescriptor[] = COMMAND_DESCRIPTORS
 ): (text: string) => string {
   const prefix = SKILL_INVOCATION_PREFIX[toolId];
   if (prefix === undefined) {
-    if (namespace === DEFAULT_COMMAND_NAMESPACE) {
+    if (namespace === DEFAULT_COMMAND_NAMESPACE && descriptors === COMMAND_DESCRIPTORS) {
       // Keep the shared function identity so callers can compare transformers.
       return transformToSkillReferences;
     }
-    return (text: string) => transformToSkillReferences(text, namespace);
+    return (text: string) => transformToSkillReferences(text, namespace, descriptors);
   }
-  return (text: string) => replaceCommandsWithSkillReferences(text, prefix, namespace);
+  return (text: string) => replaceCommandsWithSkillReferences(text, prefix, namespace, descriptors);
 }
 
 /**
@@ -219,13 +194,14 @@ export function getTransformerForTool(
   delivery: 'both' | 'skills' | 'commands',
   capability: CommandSurfaceCapability,
   invocation: CommandInvocation | undefined,
-  namespace: string = DEFAULT_COMMAND_NAMESPACE
+  namespace: string = DEFAULT_COMMAND_NAMESPACE,
+  descriptors: readonly CommandReferenceDescriptor[] = COMMAND_DESCRIPTORS
 ): ((text: string) => string) | undefined {
   if (delivery === 'skills' || capability !== 'adapter-backed') {
-    return getSkillReferenceTransformer(toolId, namespace);
+    return getSkillReferenceTransformer(toolId, namespace, descriptors);
   }
   if (toolId === 'devin' && delivery === 'both') {
-    return getSkillReferenceTransformer(toolId, namespace);
+    return getSkillReferenceTransformer(toolId, namespace, descriptors);
   }
   if (invocation !== undefined && needsInvocationRewrite(invocation)) {
     return (text: string) => transformCommandInvocations(text, invocation, namespace);

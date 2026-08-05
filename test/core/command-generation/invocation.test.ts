@@ -10,7 +10,10 @@ import { DEFAULT_COMMAND_NAMESPACE } from '../../../src/core/command-generation/
 import { CommandAdapterRegistry } from '../../../src/core/command-generation/registry.js';
 import { resolveCommandInvocation } from '../../../src/core/command-surface.js';
 import { generateCommand } from '../../../src/core/command-generation/generator.js';
-import type { CommandContent } from '../../../src/core/command-generation/types.js';
+import type {
+  CommandContent,
+  ToolCommandAdapter,
+} from '../../../src/core/command-generation/types.js';
 import { ALL_WORKFLOWS } from '../../../src/core/profiles.js';
 
 /**
@@ -70,6 +73,38 @@ describe('command-generation/invocation', () => {
       expect(
         getInvocationStyleForPath(path.join('.claude', 'commands', 'humanspec', 'propose.md'), 'humanspec')
       ).toBe('namespaced');
+    });
+
+    it('classifies the actual supplied identity rather than a sentinel action', () => {
+      const identitySensitiveAdapter: ToolCommandAdapter = {
+        toolId: 'identity-sensitive',
+        getFilePath: ({ namespace, id }) =>
+          id === 'flat'
+            ? path.join('.fixture', `${namespace}-${id}.md`)
+            : path.join('.fixture', namespace, `${id}.md`),
+        formatFile: ({ body }) => body,
+      };
+
+      expect(
+        getInvocationForAdapter(identitySensitiveAdapter, { namespace: 'acme', id: 'flat' })
+      ).toEqual({ style: 'flat', prefix: '/' });
+      expect(
+        getInvocationForAdapter(identitySensitiveAdapter, { namespace: 'acme', id: 'nested' })
+      ).toEqual({ style: 'namespaced', prefix: '/' });
+      expect(
+        getInvocationStyleForPath(
+          path.join('.fixture', 'acme', 'acme-deploy.md'),
+          'acme',
+          'acme-deploy'
+        )
+      ).toBe('namespaced');
+      expect(
+        getInvocationStyleForPath(
+          path.join('.fixture', 'acme-acme-deploy.md'),
+          'acme',
+          'acme-deploy'
+        )
+      ).toBe('flat');
     });
   });
 
