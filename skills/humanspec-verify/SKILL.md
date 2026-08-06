@@ -29,9 +29,11 @@ HumanSpec projects keep three living documents under `openspec/`:
 Read them before planning, proposing, coaching, verifying, or archiving, and
 consult the relevant document whenever the learner's context matters. They are
 living records: the learner owns their content, and the AI never fabricates
-personal reflections. Later HumanSpec roadmap changes will generate and
-refresh these documents; until then, treat missing documents as "not yet
-initialized" rather than assuming their content.
+personal reflections. After the project-local bootstrap, `humanspec-init`
+creates the initial documents. Later HumanSpec workflows may refresh them only
+within their declared write boundaries and with explicit learner confirmation;
+treat missing documents as "not yet initialized" rather than assuming their
+content.
 
 **Human implementation ownership**
 

@@ -89,6 +89,19 @@ describe('project context document templates', () => {
       expect(path.isAbsolute(templatePath)).toBe(true);
       expect(templatePath.endsWith(template.fileName)).toBe(true);
       expect(documentPath).toBe(path.join(projectRoot, 'openspec', template.fileName));
+      expect(documentPath).not.toMatch(/\\.ya?ml$/);
+    }
+  });
+
+  it('keeps the same logical destinations for Windows-style expectations', () => {
+    const projectRoot = path.win32.resolve('C:', 'tmp', 'humanspec-project');
+    const openspecRoot = path.win32.join(projectRoot, 'openspec');
+
+    for (const template of PROJECT_DOC_TEMPLATES) {
+      const expected = path.win32.join(openspecRoot, template.fileName);
+      expect(path.win32.dirname(expected)).toBe(openspecRoot);
+      expect(path.win32.basename(expected)).toBe(template.fileName);
+      expect(expected).not.toMatch(/\\.ya?ml$/);
     }
   });
 });
