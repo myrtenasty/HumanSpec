@@ -15,6 +15,23 @@ work on next, and guide them to it.
 
 **Store selection:** If the user names a store (a store is a standalone OpenSpec repo registered on this machine) or the work lives in one, run `openspec store list --json` to discover registered store ids, then pass `--store <id>` on the commands that read or write specs and changes (`new change`, `status`, `instructions`, `list`, `show`, `validate`, `archive`, `doctor`, `context`, `view`). Other commands do not take the flag. Hints printed by commands already carry the flag; keep it on follow-ups. Without a store, commands act on the nearest local `openspec/` root.
 
+**Project context documents**
+
+HumanSpec projects keep three living documents under `openspec/`:
+
+- `openspec/project.md` — the project goal, target users, tech stack,
+  constraints, and completion criteria
+- `openspec/roadmap.md` — milestones and candidate practice slices
+- `openspec/learner.md` — the learner's experience, learning goals, session
+  time budget, hint preference, and knowledge gaps
+
+Read them before planning, proposing, coaching, verifying, or archiving, and
+consult the relevant document whenever the learner's context matters. They are
+living records: the learner owns their content, and the AI never fabricates
+personal reflections. Later HumanSpec roadmap changes will generate and
+refresh these documents; until then, treat missing documents as "not yet
+initialized" rather than assuming their content.
+
 **Human implementation ownership**
 
 The human learner writes all application code and all test implementation code.

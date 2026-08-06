@@ -9,6 +9,7 @@ import { promises as fs, type Dirent } from 'fs';
 import chalk from 'chalk';
 import { FileSystemUtils, removeMarkerBlock as removeMarkerBlockUtil } from '../utils/file-system.js';
 import { OPENSPEC_MARKERS } from './config.js';
+import { detectHumanSpecDocType, resolveProjectDocPath } from './templates/project-docs.js';
 import type { WorkflowId } from './profiles.js';
 
 /**
@@ -286,6 +287,11 @@ export interface LegacyDetectionResult {
   hasOpenspecAgents: boolean;
   /** Whether openspec/project.md exists (preserved, migration hint only) */
   hasProjectMd: boolean;
+  /**
+   * Whether openspec/project.md exists AND carries a HumanSpec frontmatter
+   * marker (living HumanSpec document, exempt from the migration hint)
+   */
+  hasHumanspecProjectMd: boolean;
   /** Whether root AGENTS.md has OpenSpec markers */
   hasRootAgentsWithMarkers: boolean;
   /** Whether any legacy artifacts were found */
@@ -310,6 +316,7 @@ export async function detectLegacyArtifacts(
     globalSlashCommandDetails: [],
     hasOpenspecAgents: false,
     hasProjectMd: false,
+    hasHumanspecProjectMd: false,
     hasRootAgentsWithMarkers: false,
     hasLegacyArtifacts: false,
   };
@@ -332,6 +339,7 @@ export async function detectLegacyArtifacts(
   const structureResult = await detectLegacyStructureFiles(projectPath);
   result.hasOpenspecAgents = structureResult.hasOpenspecAgents;
   result.hasProjectMd = structureResult.hasProjectMd;
+  result.hasHumanspecProjectMd = structureResult.hasHumanspecProjectMd;
   result.hasRootAgentsWithMarkers = structureResult.hasRootAgentsWithMarkers;
 
   // Determine if any legacy artifacts exist
@@ -342,7 +350,7 @@ export async function detectLegacyArtifacts(
     result.globalSlashCommandFiles.length > 0 ||
     result.hasOpenspecAgents ||
     result.hasRootAgentsWithMarkers ||
-    result.hasProjectMd;
+    (result.hasProjectMd && !result.hasHumanspecProjectMd);
 
   return result;
 }
@@ -484,19 +492,32 @@ export async function detectLegacyStructureFiles(
 ): Promise<{
   hasOpenspecAgents: boolean;
   hasProjectMd: boolean;
+  hasHumanspecProjectMd: boolean;
   hasRootAgentsWithMarkers: boolean;
 }> {
   let hasOpenspecAgents = false;
   let hasProjectMd = false;
+  let hasHumanspecProjectMd = false;
   let hasRootAgentsWithMarkers = false;
 
   // Check for openspec/AGENTS.md
   const openspecAgentsPath = FileSystemUtils.joinPath(projectPath, 'openspec', 'AGENTS.md');
   hasOpenspecAgents = await FileSystemUtils.fileExists(openspecAgentsPath);
 
-  // Check for openspec/project.md (for migration messaging, not deleted)
-  const projectMdPath = FileSystemUtils.joinPath(projectPath, 'openspec', 'project.md');
+  // Check for openspec/project.md (for migration messaging, not deleted).
+  // A project.md carrying the HumanSpec project-document marker is a living
+  // HumanSpec document and is exempt from the legacy migration hint.
+  const projectMdPath = resolveProjectDocPath(projectPath, 'project');
   hasProjectMd = await FileSystemUtils.fileExists(projectMdPath);
+  if (hasProjectMd) {
+    try {
+      const projectMdContent = await FileSystemUtils.readFile(projectMdPath);
+      hasHumanspecProjectMd = detectHumanSpecDocType(projectMdContent) === 'project';
+    } catch {
+      // Unreadable project.md: treat as legacy (migration hint stays visible)
+      hasHumanspecProjectMd = false;
+    }
+  }
 
   // Check for root AGENTS.md with OpenSpec markers
   const rootAgentsPath = FileSystemUtils.joinPath(projectPath, 'AGENTS.md');
@@ -505,7 +526,7 @@ export async function detectLegacyStructureFiles(
     hasRootAgentsWithMarkers = hasOpenSpecMarkers(content);
   }
 
-  return { hasOpenspecAgents, hasProjectMd, hasRootAgentsWithMarkers };
+  return { hasOpenspecAgents, hasProjectMd, hasHumanspecProjectMd, hasRootAgentsWithMarkers };
 }
 
 /**
@@ -587,7 +608,7 @@ export async function cleanupLegacyArtifacts(
     deletedFileReplacementLabels: {},
     modifiedFiles: [],
     deletedDirs: [],
-    projectMdNeedsMigration: detection.hasProjectMd,
+    projectMdNeedsMigration: detection.hasProjectMd && !detection.hasHumanspecProjectMd,
     errors: [],
   };
 
@@ -840,7 +861,7 @@ export function formatDetectionSummary(detection: LegacyDetectionResult): string
   const updates = buildUpdatesList(detection);
 
   // If nothing to show, return empty
-  if (removals.length === 0 && updates.length === 0 && !detection.hasProjectMd) {
+  if (removals.length === 0 && updates.length === 0 && !(detection.hasProjectMd && !detection.hasHumanspecProjectMd)) {
     return '';
   }
 
@@ -872,7 +893,7 @@ export function formatDetectionSummary(detection: LegacyDetectionResult): string
   }
 
   // Section 3: Manual migration (project.md)
-  if (detection.hasProjectMd) {
+  if (detection.hasProjectMd && !detection.hasHumanspecProjectMd) {
     if (removals.length > 0 || updates.length > 0) lines.push('');
     lines.push(formatProjectMdMigrationHint());
   }
@@ -977,7 +998,7 @@ function hasLegacyArtifacts(detection: LegacyDetectionResult): boolean {
     detection.globalSlashCommandFiles.length > 0 ||
     detection.hasOpenspecAgents ||
     detection.hasRootAgentsWithMarkers ||
-    detection.hasProjectMd
+    (detection.hasProjectMd && !detection.hasHumanspecProjectMd)
   );
 }
 
@@ -1016,6 +1037,7 @@ export function pickGlobalLegacyPromptFiles(
     globalSlashCommandDetails: details,
     hasOpenspecAgents: false,
     hasProjectMd: false,
+    hasHumanspecProjectMd: false,
     hasRootAgentsWithMarkers: false,
     hasLegacyArtifacts: details.length > 0,
   };

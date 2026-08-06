@@ -490,6 +490,42 @@ ${OPENSPEC_MARKERS.end}`);
       expect(result.hasProjectMd).toBe(true);
     });
 
+    it('should treat HumanSpec-marked project.md as a living document, not a legacy artifact', async () => {
+      await fs.writeFile(
+        path.join(testDir, 'openspec', 'project.md'),
+        '---\ntype: humanspec-project\nversion: 1\n---\n# 项目目标\n'
+      );
+
+      const result = await detectLegacyArtifacts(testDir);
+      expect(result.hasProjectMd).toBe(true);
+      expect(result.hasHumanspecProjectMd).toBe(true);
+      expect(result.hasLegacyArtifacts).toBe(false);
+    });
+
+    it('should not treat a project.md with a different marker as HumanSpec project doc', async () => {
+      await fs.writeFile(
+        path.join(testDir, 'openspec', 'project.md'),
+        '---\ntype: humanspec-roadmap\nversion: 1\n---\n'
+      );
+
+      const result = await detectLegacyArtifacts(testDir);
+      expect(result.hasProjectMd).toBe(true);
+      expect(result.hasHumanspecProjectMd).toBe(false);
+      expect(result.hasLegacyArtifacts).toBe(true);
+    });
+
+    it('should not treat a nested type marker as a HumanSpec project doc', async () => {
+      await fs.writeFile(
+        path.join(testDir, 'openspec', 'project.md'),
+        '---\nmetadata:\n  type: humanspec-project\n---\n'
+      );
+
+      const result = await detectLegacyArtifacts(testDir);
+      expect(result.hasProjectMd).toBe(true);
+      expect(result.hasHumanspecProjectMd).toBe(false);
+      expect(result.hasLegacyArtifacts).toBe(true);
+    });
+
     it('should combine all detection results', async () => {
       // Create various legacy artifacts
       await fs.writeFile(path.join(testDir, 'CLAUDE.md'), `${OPENSPEC_MARKERS.start}\nContent\n${OPENSPEC_MARKERS.end}`);
@@ -697,6 +733,21 @@ ${OPENSPEC_MARKERS.end}`);
       await expect(fs.access(projectPath)).resolves.not.toThrow();
     });
 
+    it('should NOT flag HumanSpec-marked project.md for migration', async () => {
+      const projectPath = path.join(testDir, 'openspec', 'project.md');
+      await fs.writeFile(
+        projectPath,
+        '---\ntype: humanspec-project\nversion: 1\n---\n# 项目目标\n'
+      );
+
+      const detection = await detectLegacyArtifacts(testDir);
+      const result = await cleanupLegacyArtifacts(testDir, detection);
+
+      expect(result.projectMdNeedsMigration).toBe(false);
+      expect(result.deletedFiles).not.toContain('openspec/project.md');
+      await expect(fs.access(projectPath)).resolves.not.toThrow();
+    });
+
     it('should handle root AGENTS.md with mixed content', async () => {
       const agentsPath = path.join(testDir, 'AGENTS.md');
       await fs.writeFile(agentsPath, `User content
@@ -881,6 +932,20 @@ ${OPENSPEC_MARKERS.end}`);
       expect(summary).toContain('config.yaml');
     });
 
+    it('should omit migration hint when projectMdNeedsMigration is false', () => {
+      const result = {
+        deletedFiles: [],
+        modifiedFiles: [],
+        deletedDirs: [],
+        projectMdNeedsMigration: false,
+        errors: [],
+      };
+
+      const summary = formatCleanupSummary(result);
+      expect(summary).not.toContain('Needs your attention');
+      expect(summary).toBe('');
+    });
+
     it('should include errors', () => {
       const result = {
         deletedFiles: [],
@@ -1043,6 +1108,26 @@ ${OPENSPEC_MARKERS.end}`);
       expect(summary).toContain('won\'t delete this file');
       expect(summary).toContain('config.yaml');
       expect(summary).toContain('"context:"');
+    });
+
+    it('should NOT include attention section for HumanSpec-marked project.md', () => {
+      const detection = {
+        configFiles: [],
+        configFilesToUpdate: [],
+        slashCommandDirs: [],
+        slashCommandFiles: [],
+        globalSlashCommandFiles: [],
+        hasOpenspecAgents: false,
+        hasProjectMd: true,
+        hasHumanspecProjectMd: true,
+        hasRootAgentsWithMarkers: false,
+        hasLegacyArtifacts: false,
+      };
+
+      const summary = formatDetectionSummary(detection);
+      expect(summary).not.toContain('Needs your attention');
+      expect(summary).not.toContain('openspec/project.md');
+      expect(summary).toBe('');
     });
 
     it('should include attention section with other legacy artifacts', () => {

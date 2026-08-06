@@ -113,11 +113,12 @@ The system SHALL remove legacy slash command directories entirely.
 
 ### Requirement: project.md migration hint
 
-The system SHALL preserve project.md and display a migration hint instead of deleting it.
+The system SHALL preserve project.md and display a migration hint instead of deleting it, unless the file carries a HumanSpec project-document frontmatter marker (`type: humanspec-project`), in which case the system SHALL treat it as a living HumanSpec document and SHALL NOT report it as a legacy artifact.
 
-#### Scenario: project.md exists during upgrade
+#### Scenario: Unmarked project.md exists during upgrade
 
 - **WHEN** `openspec/project.md` exists during legacy cleanup
+- **AND** the file does not carry a HumanSpec frontmatter marker
 - **THEN** the system SHALL NOT delete the file
 - **AND** the system SHALL display a migration hint in the output:
   ```
@@ -125,6 +126,14 @@ The system SHALL preserve project.md and display a migration hint instead of del
     → openspec/project.md still exists
       Move useful content to config.yaml's "context:" field, then delete
   ```
+
+#### Scenario: Marked project.md is a living document
+
+- **WHEN** `openspec/project.md` exists during legacy cleanup
+- **AND** the file's frontmatter declares `type: humanspec-project`
+- **THEN** the system SHALL NOT delete the file
+- **AND** the system SHALL NOT display the project.md migration hint
+- **AND** the file SHALL NOT be reported among the detected legacy artifacts
 
 #### Scenario: project.md migration rationale
 
@@ -143,17 +152,24 @@ The system SHALL report what was cleaned up.
 - **THEN** the system SHALL display a summary section:
   ```
   Cleaned up legacy files:
-    ✓ Removed OpenSpec markers from CLAUDE.md
-    ✓ Removed .claude/commands/openspec/ (replaced by OpenSpec skills and commands)
-    ✓ Removed openspec/AGENTS.md (no longer needed)
+    → Removed OpenSpec markers from CLAUDE.md
+    → Removed .claude/commands/openspec/ (replaced by OpenSpec skills and commands)
+    → Removed openspec/AGENTS.md (no longer needed)
   ```
-- **AND IF** `openspec/project.md` exists
+- **AND IF** `openspec/project.md` exists without a HumanSpec frontmatter marker
 - **THEN** the system SHALL display a separate migration section:
   ```
   Manual migration needed:
     → openspec/project.md still exists
       Move useful content to config.yaml's "context:" field, then delete
   ```
+
+#### Scenario: Marked project.md omitted from reporting
+
+- **WHEN** legacy cleanup completes
+- **AND** `openspec/project.md` exists with a HumanSpec frontmatter marker
+- **THEN** the system SHALL NOT display a project.md migration section
+- **AND** the summary SHALL NOT list the file as a legacy artifact
 
 #### Scenario: No legacy detected
 

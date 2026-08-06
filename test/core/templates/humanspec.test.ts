@@ -16,7 +16,7 @@ import {
   getHumanspecArchiveCommandTemplate,
   getHumanspecExploreCommandTemplate,
 } from '../../../src/core/templates/skill-templates.js';
-import { HUMANSPEC_IMPLEMENTATION_BOUNDARY } from '../../../src/core/templates/workflows/humanspec-shared.js';
+import { HUMANSPEC_IMPLEMENTATION_BOUNDARY, HUMANSPEC_PROJECT_DOCS } from '../../../src/core/templates/workflows/humanspec-shared.js';
 
 const SKILL_FACTORIES: Array<[string, () => { name: string; instructions: string }]> = [
   ['humanspec-init', getHumanspecInitSkillTemplate],
@@ -56,6 +56,26 @@ describe('HumanSpec workflow templates', () => {
       expect(template.content, id).toContain(
         'The human learner writes all application code and all test implementation code'
       );
+    }
+  });
+
+  it('every skill template carries the shared project-context reading convention', () => {
+    for (const [id, factory] of SKILL_FACTORIES) {
+      const template = factory();
+      expect(template.instructions, id).toContain(HUMANSPEC_PROJECT_DOCS);
+      expect(template.instructions, id).toContain('openspec/project.md');
+      expect(template.instructions, id).toContain('openspec/roadmap.md');
+      expect(template.instructions, id).toContain('openspec/learner.md');
+    }
+  });
+
+  it('every command template carries the shared project-context reading convention', () => {
+    for (const [id, factory] of COMMAND_FACTORIES) {
+      const template = factory();
+      expect(template.content, id).toContain(HUMANSPEC_PROJECT_DOCS);
+      expect(template.content, id).toContain('openspec/project.md');
+      expect(template.content, id).toContain('openspec/roadmap.md');
+      expect(template.content, id).toContain('openspec/learner.md');
     }
   });
 

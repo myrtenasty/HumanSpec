@@ -25,6 +25,32 @@ test implementation files for the learner, and must not mark the learner's
 practice tasks complete.`;
 
 /**
+ * The shared project-context reading convention. Embedded in every HumanSpec
+ * skill and command template so all workflows read the project's HumanSpec
+ * documents from one defined source instead of hardcoding their own paths.
+ *
+ * Phrased honestly: the documents exist as registered templates and the
+ * workflows consult them when present; generating and refreshing them is the
+ * job of later HumanSpec roadmap changes.
+ */
+export const HUMANSPEC_PROJECT_DOCS = `**Project context documents**
+
+HumanSpec projects keep three living documents under \`openspec/\`:
+
+- \`openspec/project.md\` — the project goal, target users, tech stack,
+  constraints, and completion criteria
+- \`openspec/roadmap.md\` — milestones and candidate practice slices
+- \`openspec/learner.md\` — the learner's experience, learning goals, session
+  time budget, hint preference, and knowledge gaps
+
+Read them before planning, proposing, coaching, verifying, or archiving, and
+consult the relevant document whenever the learner's context matters. They are
+living records: the learner owns their content, and the AI never fabricates
+personal reflections. Later HumanSpec roadmap changes will generate and
+refresh these documents; until then, treat missing documents as "not yet
+initialized" rather than assuming their content.`;
+
+/**
  * Per-workflow write boundaries, matching the initial HumanSpec template
  * contract (see the humanspec-workflow-profile spec):
  *

@@ -9,6 +9,7 @@
 import type { SkillTemplate, CommandTemplate } from '../types.js';
 import {
   HUMANSPEC_IMPLEMENTATION_BOUNDARY,
+  HUMANSPEC_PROJECT_DOCS,
   HUMANSPEC_WRITE_BOUNDARIES,
 } from './humanspec-shared.js';
 import { STORE_SELECTION_GUIDANCE } from './store-selection.js';
@@ -49,6 +50,8 @@ export function getHumanspecVerifySkillTemplate(): SkillTemplate {
 
 ${STORE_SELECTION_GUIDANCE}
 
+${HUMANSPEC_PROJECT_DOCS}
+
 ${HUMANSPEC_IMPLEMENTATION_BOUNDARY}
 
 ${HUMANSPEC_WRITE_BOUNDARIES['humanspec-verify']}
@@ -76,6 +79,8 @@ export function getHumanspecVerifyCommandTemplate(): CommandTemplate {
     content: `${RESPONSIBILITY}
 
 ${STORE_SELECTION_GUIDANCE}
+
+${HUMANSPEC_PROJECT_DOCS}
 
 ${HUMANSPEC_IMPLEMENTATION_BOUNDARY}
 
