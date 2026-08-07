@@ -157,7 +157,7 @@ Those later workflow behaviors remain outside this initialization change.`;
  * contract (see the humanspec-workflow-profile spec):
  *
  * - init: project planning documents
- * - next: routing and guidance only
+ * - next: routing and one bounded planning-artifact handoff
  * - propose: change planning artifacts
  * - coach: no implementation writes
  * - verify: review output and the reserved AI verification area of learning.md
@@ -168,9 +168,12 @@ export const HUMANSPEC_WRITE_BOUNDARIES: Record<string, string> = {
   'humanspec-init': `Write boundary: this workflow writes project planning documents only: the three
 HumanSpec documents under openspec/ and the CLI bootstrap's openspec/config.yaml.
 It does not write application source, test implementation, or change artifacts.`,
-  'humanspec-next': `Write boundary: this workflow provides routing and guidance only. It selects
-the next change to work on and guides the learner to it; it does not write
-application, test, or planning artifacts for the learner.`,
+  'humanspec-next': `Write boundary: this workflow provides routing and bounded planning guidance. It
+may continue the existing artifact-authoring protocol for one explicitly
+resolved planning artifact at its concrete output path, after re-checking
+structured status. It never writes application or test implementation, learner
+task checkboxes, learner reflections, verification records, roadmap updates, or
+adaptive archive feedback.`,
   'humanspec-propose': `Write boundary: this workflow writes change planning artifacts only
 (proposal, specs, learning plan under openspec/changes/<name>/). It does not
 write application or test implementation code.`,

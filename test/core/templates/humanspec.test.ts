@@ -82,7 +82,7 @@ describe('HumanSpec workflow templates', () => {
   it('declares the initial write boundaries honestly', () => {
     const boundaries: Record<string, string> = {
       'humanspec-init': 'project planning documents only',
-      'humanspec-next': 'routing and guidance only',
+      'humanspec-next': 'routing and bounded planning guidance',
       'humanspec-propose': 'change planning artifacts only',
       'humanspec-coach': 'no implementation writes',
       'humanspec-verify': 'review output and the reserved AI verification area of learning.md',
