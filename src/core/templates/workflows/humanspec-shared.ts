@@ -43,6 +43,15 @@ HumanSpec projects keep three living documents under \`openspec/\`:
 - \`openspec/learner.md\` — the learner's experience, learning goals, session
   time budget, hint preference, and knowledge gaps
 
+The registered document descriptors are the source of truth for every path and
+feedback anchor: \`PROJECT_DOC_TEMPLATES\`, \`getProjectDocTemplate\`,
+\`resolveProjectDocPath\`, \`detectHumanSpecDocType\`, and the registered
+archive-feedback descriptors. The roadmap keeps candidate slices under
+\`# 候选切片\` as \`- [ ] slice: <change-name> — <learning focus>\`; archive
+creates \`# 已归档切片\` records as \`- [x] archived: <change-name> — <outcome>
+(feedback: pending|complete)\`. Learner feedback uses only the registered
+\`gap:\`, \`mastered:\`, and \`review:\` records in their named sections.
+
 Read them before planning, proposing, coaching, verifying, or archiving, and
 consult the relevant document whenever the learner's context matters. They are
 living records: the learner owns their content, and the AI never fabricates
@@ -149,8 +158,9 @@ only when all three documents are valid HumanSpec documents and the learner has
 confirmed the result.
 
 This initialization contract does not implement or claim adaptive routing,
-reflection gates, learning-history updates, or learning-aware archive behavior.
-Those later workflow behaviors remain outside this initialization change.`;
+reflection gates, or learning-history updates. Learning-aware archive feedback
+is owned by the separate \`humanspec-archive\` workflow and is available only
+when its verification, preview, confirmation, and retry gates are followed.`;
 
 /**
  * Per-workflow write boundaries, matching the initial HumanSpec template
@@ -161,7 +171,8 @@ Those later workflow behaviors remain outside this initialization change.`;
  * - propose: change planning artifacts
  * - coach: no implementation writes
  * - verify: review output and the reserved AI verification area of learning.md
- * - archive: specifications, planning records, and archive paths
+ * - archive: specifications, planning records, archive paths, and explicitly
+ *   confirmed roadmap and learner feedback records
  * - explore: no implementation writes
  */
 export const HUMANSPEC_WRITE_BOUNDARIES: Record<string, string> = {
@@ -182,8 +193,12 @@ explains, diagnoses, and hints while the learner writes the code.`,
   'humanspec-verify': `Write boundary: this workflow writes review output and the reserved AI verification area of learning.md only. It does not edit the
 learner's application or test code.`,
   'humanspec-archive': `Write boundary: this workflow writes specifications, planning records, and
-archive paths only (syncing specs and moving the change under
-openspec/changes/archive/). It does not write application or test code.`,
+archive paths through the canonical archive operation, plus only the exact
+roadmap slice and learner gap/mastered/review records the learner explicitly
+confirms after the archive succeeds. It uses atomic same-directory document
+replacement and preserves unrelated learner-authored content. It never writes
+application or test implementation, learner task checkboxes, or learner
+reflection sections.`,
   'humanspec-explore': `Write boundary: this workflow makes no implementation writes. It investigates
 and clarifies a problem so the learner can decide what to practice next.`,
 };

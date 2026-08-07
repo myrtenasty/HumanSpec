@@ -24,6 +24,52 @@ export const PROJECT_DOC_TEMPLATES_DIR = 'project-docs';
 
 export type ProjectDocId = 'project' | 'roadmap' | 'learner';
 
+/** A named heading that a registered project document must preserve. */
+export interface ProjectDocSectionDescriptor {
+  /** Stable name used by feedback planners and tests. */
+  id: string;
+  /** Exact Markdown heading, including its level marker. */
+  heading: string;
+  /** Heading level used when resolving the section body. */
+  level: 1 | 2;
+}
+
+/** A named machine-readable record grammar in a registered document. */
+export interface ProjectDocRecordDescriptor {
+  /** Stable name used by feedback planners and tests. */
+  id: string;
+  /** Section heading that owns this record grammar. */
+  sectionHeading: string;
+  /** Literal record prefix, such as `slice:` or `mastered:`. */
+  prefix: string;
+  /** Human-readable record kind. */
+  kind: 'candidate-slice' | 'archived-slice' | 'gap' | 'mastered' | 'review';
+}
+
+export interface ProjectDocFeedbackDescriptors {
+  /** The optional section created after the first confirmed archive. */
+  archiveSection: ProjectDocSectionDescriptor;
+  /** The roadmap candidate grammar used for exact change-name lookup. */
+  candidateSlice: ProjectDocRecordDescriptor;
+  /** The explicit pending-feedback state marker used during reconciliation. */
+  pendingFeedback: {
+    id: 'pending-feedback';
+    marker: 'feedback: pending';
+    completeMarker: 'feedback: complete';
+  };
+  /** The archived record grammar and its pending/complete state marker. */
+  archivedSlice: ProjectDocRecordDescriptor & {
+    pendingMarker: string;
+    completeMarker: string;
+  };
+  /** The three learner-owned feedback record grammars. */
+  learnerRecords: readonly [
+    ProjectDocRecordDescriptor,
+    ProjectDocRecordDescriptor,
+    ProjectDocRecordDescriptor,
+  ];
+}
+
 export interface ProjectDocTemplate {
   /** Stable identifier used by consumers and tests. */
   id: ProjectDocId;
@@ -31,17 +77,136 @@ export interface ProjectDocTemplate {
   fileName: string;
   /** Value of the frontmatter `type:` marker this document carries. */
   markerType: string;
+  /** Required headings for structural validation. */
+  requiredHeadings: readonly ProjectDocSectionDescriptor[];
+  /** Registered archive-feedback anchors, when this document owns them. */
+  feedback?: ProjectDocFeedbackDescriptors;
 }
+
+const PROJECT_SECTIONS = {
+  project: [
+    { id: 'project-goal', heading: '# 项目目标', level: 1 },
+    { id: 'target-users', heading: '# 目标用户', level: 1 },
+    { id: 'technology-stack', heading: '# 技术栈', level: 1 },
+    { id: 'constraints', heading: '# 约束', level: 1 },
+    { id: 'completion-criteria', heading: '# 完成标准', level: 1 },
+  ],
+  roadmap: [
+    { id: 'milestones', heading: '# 里程碑', level: 1 },
+    { id: 'milestone-1', heading: '## 里程碑 1', level: 2 },
+    { id: 'candidate-slices', heading: '# 候选切片', level: 1 },
+  ],
+  learner: [
+    { id: 'experience', heading: '# 已有经验', level: 1 },
+    { id: 'learning-goals', heading: '# 学习目标', level: 1 },
+    { id: 'session-budget', heading: '# 单次时间预算', level: 1 },
+    { id: 'hint-preference', heading: '# 提示偏好', level: 1 },
+    { id: 'knowledge-gaps', heading: '# 已暴露的知识缺口', level: 1 },
+    { id: 'mastered-topics', heading: '# 已掌握内容', level: 1 },
+    { id: 'review-items', heading: '# 建议复习项', level: 1 },
+  ],
+} as const satisfies Record<ProjectDocId, readonly ProjectDocSectionDescriptor[]>;
+
+const ROADMAP_FEEDBACK: ProjectDocFeedbackDescriptors = {
+  archiveSection: { id: 'archived-slices', heading: '# 已归档切片', level: 1 },
+  candidateSlice: {
+    id: 'candidate-slice',
+    sectionHeading: '# 候选切片',
+    prefix: 'slice:',
+    kind: 'candidate-slice',
+  },
+  pendingFeedback: {
+    id: 'pending-feedback',
+    marker: 'feedback: pending',
+    completeMarker: 'feedback: complete',
+  },
+  archivedSlice: {
+    id: 'archived-slice',
+    sectionHeading: '# 已归档切片',
+    prefix: 'archived:',
+    kind: 'archived-slice',
+    pendingMarker: 'feedback: pending',
+    completeMarker: 'feedback: complete',
+  },
+  learnerRecords: [
+    {
+      id: 'knowledge-gap',
+      sectionHeading: '# 已暴露的知识缺口',
+      prefix: 'gap:',
+      kind: 'gap',
+    },
+    {
+      id: 'mastered-topic',
+      sectionHeading: '# 已掌握内容',
+      prefix: 'mastered:',
+      kind: 'mastered',
+    },
+    {
+      id: 'review-item',
+      sectionHeading: '# 建议复习项',
+      prefix: 'review:',
+      kind: 'review',
+    },
+  ],
+};
 
 /**
  * The three HumanSpec project context documents, registered by name.
  * Template files live under templates/project-docs/<fileName>.
+ *
+ * Feedback anchors are part of the registry rather than free-form workflow
+ * text so every consumer resolves the same logical sections and record
+ * grammar. The archive section is deliberately optional in the initial
+ * roadmap template: it is created only after a learner confirms feedback.
  */
 export const PROJECT_DOC_TEMPLATES: readonly ProjectDocTemplate[] = [
-  { id: 'project', fileName: 'project.md', markerType: 'humanspec-project' },
-  { id: 'roadmap', fileName: 'roadmap.md', markerType: 'humanspec-roadmap' },
-  { id: 'learner', fileName: 'learner.md', markerType: 'humanspec-learner' },
+  {
+    id: 'project',
+    fileName: 'project.md',
+    markerType: 'humanspec-project',
+    requiredHeadings: PROJECT_SECTIONS.project,
+  },
+  {
+    id: 'roadmap',
+    fileName: 'roadmap.md',
+    markerType: 'humanspec-roadmap',
+    requiredHeadings: PROJECT_SECTIONS.roadmap,
+    feedback: ROADMAP_FEEDBACK,
+  },
+  {
+    id: 'learner',
+    fileName: 'learner.md',
+    markerType: 'humanspec-learner',
+    requiredHeadings: PROJECT_SECTIONS.learner,
+    feedback: ROADMAP_FEEDBACK,
+  },
 ] as const;
+
+/** Stable aliases for callers that want the named feedback descriptors. */
+export const PROJECT_DOC_FEEDBACK_DESCRIPTORS = {
+  roadmap: {
+    archiveSection: ROADMAP_FEEDBACK.archiveSection,
+    candidateSlice: ROADMAP_FEEDBACK.candidateSlice,
+    pendingFeedback: ROADMAP_FEEDBACK.pendingFeedback,
+    archivedSlice: ROADMAP_FEEDBACK.archivedSlice,
+  },
+  learner: {
+    records: ROADMAP_FEEDBACK.learnerRecords,
+    learnerRecords: ROADMAP_FEEDBACK.learnerRecords,
+    gap: ROADMAP_FEEDBACK.learnerRecords[0],
+    mastered: ROADMAP_FEEDBACK.learnerRecords[1],
+    review: ROADMAP_FEEDBACK.learnerRecords[2],
+  },
+} as const;
+
+export const ROADMAP_ARCHIVE_SECTION = ROADMAP_FEEDBACK.archiveSection;
+export const ROADMAP_CANDIDATE_SLICE = ROADMAP_FEEDBACK.candidateSlice;
+export const ROADMAP_PENDING_FEEDBACK = ROADMAP_FEEDBACK.pendingFeedback;
+export const ROADMAP_ARCHIVED_SLICE = ROADMAP_FEEDBACK.archivedSlice;
+export const LEARNER_FEEDBACK_RECORDS = ROADMAP_FEEDBACK.learnerRecords;
+export const LEARNER_GAP_RECORD = ROADMAP_FEEDBACK.learnerRecords[0];
+export const LEARNER_MASTERED_RECORD = ROADMAP_FEEDBACK.learnerRecords[1];
+export const LEARNER_REVIEW_RECORD = ROADMAP_FEEDBACK.learnerRecords[2];
 
 /**
  * Looks up a registered project context document by its stable id.
@@ -131,3 +296,8 @@ export function detectHumanSpecDocType(content: string): ProjectDocId | null {
   }
   return null;
 }
+
+// The planner lives in its own module to keep registry metadata lightweight,
+// while this facade keeps all project-document operations discoverable from the
+// original registry import path.
+export * from './project-doc-feedback.js';

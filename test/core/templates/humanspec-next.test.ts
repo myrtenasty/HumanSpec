@@ -85,6 +85,7 @@ describe('HumanSpec next workflow templates', () => {
         'getProjectDocTemplate',
         'resolveProjectDocPath',
         'detectHumanSpecDocType',
+        'resolveNextRoadmapContext',
         'path.join()',
         'path.resolve()',
         'project',
@@ -238,6 +239,25 @@ describe('HumanSpec next workflow templates', () => {
     expect(generatedCommand.fileContent).toContain('choice-required');
     expect(generatedCommand.fileContent).toContain('/humanspec:archive');
     expect(generatedCommand.fileContent).toContain('adaptive archive feedback');
+  });
+
+  it('routes pending archived feedback before selecting a new candidate', () => {
+    for (const [label, body] of bodies) {
+      const text = normalized(body);
+      for (const marker of [
+        'an archived outcome has `feedback: pending` reconciliation',
+        'first read the registered `# 已归档切片` records',
+        'hand off to `/humanspec:archive` for reconciliation',
+        'Do not select a roadmap candidate or re-propose the archived change',
+        'exclude every change name already present in an archived record',
+        '`mastered:`, `gap:`, and `review:` records',
+        '`feedback: complete`',
+        'Normalized state',
+        '`reconciliation`',
+      ]) {
+        expect(text, `${label}: ${marker}`).toContain(marker);
+      }
+    }
   });
 
   it('resolves registered documents and planning-home paths on each platform', () => {

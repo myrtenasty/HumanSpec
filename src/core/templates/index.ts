@@ -7,3 +7,4 @@
 
 // Re-export all skill templates and related types through the compatibility facade.
 export * from './skill-templates.js';
+export * from './project-docs.js';

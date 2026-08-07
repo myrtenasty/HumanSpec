@@ -15,10 +15,10 @@ import {
 import { STORE_SELECTION_GUIDANCE } from './store-selection.js';
 
 const RESPONSIBILITY = `Resolve one reliable next HumanSpec action from the project's structured
-context and the selected change's lifecycle state. Read the registered project
-documents and OpenSpec JSON outputs, make uncertainty visible, and report one
-bounded handoff while preserving the learner's ownership of implementation and
-learning evidence.`;
+context and the selected change's lifecycle state, including post-archive
+feedback reconciliation. Read the registered project documents and OpenSpec
+JSON outputs, make uncertainty visible, and report one bounded handoff while
+preserving the learner's ownership of implementation and learning evidence.`;
 
 const STEPS = `**Steps**
 
@@ -32,7 +32,10 @@ const STEPS = `**Steps**
    \`roadmap\`, and \`learner\` documents and classify each as valid
    HumanSpec, missing, malformed/invalid, or unmarked user content. A marker
    alone is not enough: check the registered frontmatter, required headings,
-   and parseable roadmap and learner records.
+   and parseable roadmap and learner records. For the no-active-change route,
+   use the registered \`resolveNextRoadmapContext\` helper so pending feedback,
+   archived-slice exclusion, and learner records are resolved from the same
+   grammar as archive feedback.
 
    If any document is missing, malformed, unmarked, or unresolved, stop before
    selecting a change. Report the affected logical document id and resolved
@@ -68,22 +71,33 @@ const STEPS = `**Steps**
    1. project context is missing, malformed, unmarked, or unresolved;
    2. more than one active change can be resumed, or structured status,
       artifact files, learning evidence, or validation results conflict;
-   3. no active change has a confirmed roadmap slice;
-   4. the selected change has a next uncompleted planning artifact;
-   5. planning is complete and a learner-owned practice task remains;
-   6. practice tasks are complete but a required learner reflection remains;
-   7. learner evidence is ready but verification is absent, failed, or blocked;
-   8. verification has a passing disposition and archive is the next handoff.
+   3. an archived outcome has \`feedback: pending\` reconciliation;
+   4. no active change has a confirmed roadmap slice;
+   5. the selected change has a next uncompleted planning artifact;
+   6. planning is complete and a learner-owned practice task remains;
+   7. practice tasks are complete but a required learner reflection remains;
+   8. learner evidence is ready but verification is absent, failed, or blocked;
+   9. verification has a passing disposition and archive is the next handoff.
 
-   Do not let a later passing result hide an earlier missing prerequisite.
-   A paused change is resumed at the first unresolved state only after the
+   Do not let a later passing result hide an earlier missing prerequisite. A
+   pending archived outcome is checked before selecting any new candidate. A
+   paused change is resumed at the first unresolved state only after the
    learner explicitly selects it.
 
-4. **Resolve no-change and ambiguous states without guessing**:
+4. **Resolve pending feedback, no-change, and ambiguous states without guessing**:
 
-   - With no active change, read the roadmap's parseable candidate slices and
-     learner context, name one fitting slice, explain the fit, and hand off to
-     \`/humanspec:propose\`. Preserve propose's explicit confirmation gate:
+   - With no active change, first read the registered \`# 已归档切片\` records
+     and call \`resolveNextRoadmapContext\` after reading the documents. If any
+     exact record says \`feedback: pending\`,
+     select only that archived outcome, report its path and pending document,
+     and hand off to \`/humanspec:archive\` for reconciliation. Do not select
+     a roadmap candidate or re-propose the archived change until reconciliation
+     is complete.
+   - Otherwise read the roadmap's parseable candidate slices and learner
+     context, exclude every change name already present in an archived record,
+     name one fitting remaining slice, explain its fit using the current
+     milestone, \`mastered:\`, \`gap:\`, and \`review:\` records, and hand off
+     to \`/humanspec:propose\`. Preserve propose's explicit confirmation gate:
      never run \`openspec new change\`, create a change directory, or create
      artifacts from this route without that confirmation.
    - With multiple resumable changes, show each name, planning progress, first
@@ -136,13 +150,19 @@ const STEPS = `**Steps**
      this state. Route to \`/humanspec:archive\`; do not execute archive and
      do not claim that the roadmap, learner feedback, or adaptive archive
      records have already been updated.
+   - **Post-archive feedback**: a confirmed \`feedback: pending\` record is a
+     reconciliation prerequisite, not an empty roadmap and not a new change.
+     The archive workflow must confirm the roadmap and learner records before
+     next may explain or select a later candidate.
 
 6. **Keep repeated routing and ownership boundaries explicit**: every
    invocation re-reads the structured state before deciding. Repeated runs with
    no state change return the same selected change, normalized state, evidence,
    blocker, and one next action. They do not create duplicate changes,
-   artifacts, tasks, reflections, verification records, or implementation
-   edits. Next never writes application or test implementation, learner task
+   artifacts, tasks, reflections, verification records, or implementation edits
+   or feedback records. A pending archived outcome always routes to the same
+   reconciliation target until its record changes to \`feedback: complete\`.
+   Next never writes application or test implementation, learner task
    checkboxes, learner reflections, verification records, roadmap updates, or
    adaptive archive feedback. Its only possible write is the one concrete
    planning artifact explicitly authorized by the current artifact instruction;
@@ -155,8 +175,8 @@ const STEPS = `**Steps**
    - **Selected change**: one name, or \`none\` when context is not ready, a
      choice is required, or the roadmap handoff is selected;
    - **Normalized state**: one of \`project-not-ready\`,
-     \`choice-required\`, \`roadmap-propose\`, \`planning\`,
-     \`practice\`, \`reflection\`, \`verify\`, or \`archive\`;
+     \`choice-required\`, \`reconciliation\`, \`roadmap-propose\`,
+     \`planning\`, \`practice\`, \`reflection\`, \`verify\`, or \`archive\`;
    - **Recommended next action**: exactly one registered HumanSpec handoff or
      one named artifact-authoring action;
    - **Reason**: one short explanation tied to the precedence;
@@ -167,8 +187,11 @@ const STEPS = `**Steps**
      remains learner-owned.
 
    Report an explicit no-selection result for readiness and ambiguity blockers.
-   Do not claim roadmap mutation, learner-history updates, adaptive routing, or
-   learning-aware archive behavior; those belong to later workflows.`;
+   Next remains read-only for roadmap and learner feedback: it may report the
+   confirmed post-archive state and route reconciliation, but only
+   \`humanspec-archive\` applies those explicitly confirmed records. Do not
+   claim roadmap mutation, learner-history updates, adaptive routing, or
+   completed feedback before archive confirms it.`;
 
 const OUTPUT = `**Output**
 
@@ -179,7 +202,10 @@ evidence, blockers, and ownership boundary. For a planning handoff, include
 the one artifact id and concrete resolved output path. For a learner handoff,
 name the task or reflection section and the registered HumanSpec action
 (\`/humanspec:init\`, \`/humanspec:propose\`, \`/humanspec:coach\`,
-\`/humanspec:verify\`, or \`/humanspec:archive\`).`;
+\`/humanspec:verify\`, or \`/humanspec:archive\`). For reconciliation,
+include the exact archived change and pending document; for a later candidate,
+include the archived-slice exclusion and the updated milestone/mastered/gap/
+review evidence used for the fit.`;
 
 const CONTENT = `${RESPONSIBILITY}
 

@@ -27,6 +27,15 @@ HumanSpec projects keep three living documents under `openspec/`:
 - `openspec/learner.md` — the learner's experience, learning goals, session
   time budget, hint preference, and knowledge gaps
 
+The registered document descriptors are the source of truth for every path and
+feedback anchor: `PROJECT_DOC_TEMPLATES`, `getProjectDocTemplate`,
+`resolveProjectDocPath`, `detectHumanSpecDocType`, and the registered
+archive-feedback descriptors. The roadmap keeps candidate slices under
+`# 候选切片` as `- [ ] slice: <change-name> — <learning focus>`; archive
+creates `# 已归档切片` records as `- [x] archived: <change-name> — <outcome>
+(feedback: pending|complete)`. Learner feedback uses only the registered
+`gap:`, `mastered:`, and `review:` records in their named sections.
+
 Read them before planning, proposing, coaching, verifying, or archiving, and
 consult the relevant document whenever the learner's context matters. They are
 living records: the learner owns their content, and the AI never fabricates
@@ -141,8 +150,9 @@ only when all three documents are valid HumanSpec documents and the learner has
 confirmed the result.
 
 This initialization contract does not implement or claim adaptive routing,
-reflection gates, learning-history updates, or learning-aware archive behavior.
-Those later workflow behaviors remain outside this initialization change.
+reflection gates, or learning-history updates. Learning-aware archive feedback
+is owned by the separate `humanspec-archive` workflow and is available only
+when its verification, preview, confirmation, and retry gates are followed.
 
 **Steps**
 
