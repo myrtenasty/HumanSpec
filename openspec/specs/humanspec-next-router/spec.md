@@ -46,7 +46,7 @@ When no suitable practice change is active, or when the selected change has inco
 
 ### Requirement: Next routes practice and learning evidence in order
 
-The workflow MUST keep implementation, task completion, reflection, verification, and archiving in the order defined by the selected change's learning contract.
+The workflow MUST keep implementation, task completion, reflection, verification, archiving, and post-archive feedback in the order defined by the selected change's learning contract.
 
 #### Scenario: Practice tasks remain
 
@@ -70,7 +70,24 @@ The workflow MUST keep implementation, task completion, reflection, verification
 
 - **GIVEN** verification has a passing disposition for the selected change
 - **WHEN** the learner invokes `humanspec-next`
-- **THEN** the workflow routes to `humanspec-archive` and does not claim that roadmap or learner feedback has already been updated
+- **THEN** the workflow routes to `humanspec-archive`
+- **AND** identifies archive and feedback reconciliation as prerequisites before selecting another slice
+- **AND** does not claim that roadmap or learner feedback is complete before the archive workflow confirms it
+
+#### Scenario: Archive feedback is still pending
+
+- **GIVEN** a change has been archived but the registered roadmap or learner feedback record is explicitly marked pending reconciliation
+- **WHEN** the learner invokes `humanspec-next` with no active change
+- **THEN** the workflow SHALL route to reconciliation for that archived outcome
+- **AND** SHALL not select a new candidate or re-propose the archived change until the pending state is resolved
+
+#### Scenario: A later routing run consumes archived feedback
+
+- **GIVEN** a change has been successfully archived and its confirmed feedback has updated the registered roadmap and learner documents
+- **WHEN** the learner invokes `humanspec-next` with no active change
+- **THEN** the workflow SHALL exclude the archived slice from pending candidates
+- **AND** SHALL use the updated learner topics, gaps, review items, and milestone state when explaining the next candidate
+- **AND** SHALL not recreate or re-propose the archived change solely because its original name remains in historical records
 
 ### Requirement: Ambiguous and interrupted states require an explicit learner choice
 

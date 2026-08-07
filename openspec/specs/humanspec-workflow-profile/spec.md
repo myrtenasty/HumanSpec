@@ -84,14 +84,15 @@ Every HumanSpec workflow template SHALL preserve the learner's ownership of appl
   - propose: change planning artifacts
   - coach: no implementation writes
   - verify: review output and the reserved AI verification area of `learning.md`
-  - archive: specifications, planning records, and archive paths
+  - archive: specifications, planning records, archive paths, and explicitly confirmed roadmap and learner feedback records
   - explore: no implementation writes
 
 #### Scenario: Later workflow behavior is not implied
 
 - **WHEN** the HumanSpec profile is installed before later roadmap workflow changes are implemented
 - **THEN** its generated templates SHALL identify their current responsibility and safety boundary
-- **AND** SHALL NOT claim that unimplemented reflection gates, adaptive routing, or learning-aware archive behavior has already completed
+- **AND** SHALL NOT claim that unimplemented reflection gates, adaptive routing, or other deferred workflow behavior has already completed
+- **AND** SHALL describe learning-aware archive feedback as implemented only when the archive-feedback contract and its confirmation and retry behavior are available
 
 ### Requirement: OpenSpec compatibility and internal apply protocol
 
