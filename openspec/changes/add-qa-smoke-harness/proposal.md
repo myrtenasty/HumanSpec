@@ -1,45 +1,29 @@
 ## Why
 
-We need a faster, more reliable way to manually validate CLI behavior changes like profile/delivery sync, migration behavior, and tool-detection UX.
-
-Today, manual review is mostly ad hoc: each developer sets up state differently, runs a different command order, and checks outputs informally. This makes regressions easy to miss and slows iteration on CLI UX work.
-
-An 80/20 solution is to add a lightweight smoke harness for deterministic non-interactive flows, plus a short manual checklist for interactive prompt behavior.
+HumanSpec currently has helper, prompt-text, and generic CLI tests, but no repeatable release gate proving that the packed product can execute its deterministic learning loop. Manual CLI review is also ad hoc, and model-dependent teaching behavior is easily mislabeled as deterministic end-to-end coverage.
 
 ## What Changes
 
-- Add a lightweight QA smoke harness for OpenSpec CLI behavior with isolated per-run sandbox state
-- Use `Makefile` targets as the primary entrypoint:
-  - `make qa` (default local QA entrypoint)
-  - `make qa-smoke` (deterministic non-interactive suite)
-  - `make qa-interactive` (prints/opens manual interactive checklist)
-- Implement smoke logic in a script (invoked by Make targets), not in Make itself
-- Ensure each scenario runs in an isolated sandbox with temporary `HOME`, `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, and `CODEX_HOME`
-- Capture scenario artifacts for inspection (command output, exit code, and before/after filesystem state)
-- Add a focused scenario set for high-risk behavior:
-  - init core output generation
-  - non-interactive detected-tool behavior
-  - migration when profile is unset
-  - delivery cleanup (`both -> skills`, `both -> commands`)
-  - commands-only update detection
-  - new tool directory detection messaging
-  - invalid profile override validation
-- Add a short interactive checklist for keypress/prompt UX verification (Space toggle, Enter confirm, detected pre-selection)
-- Wire CI to run the smoke suite on Linux as a fast regression gate
+- Add a lightweight, sandboxed QA harness with stable local entrypoints for deterministic smoke tests and a separate manual/model checklist.
+- Isolate each scenario with temporary home/config/data/tool directories and retain command output, exit status, and relevant before/after filesystem state on failure.
+- Preserve focused generic CLI scenarios for profile/delivery synchronization, migration-sensitive behavior, tool detection, cleanup, and invalid configuration.
+- Add a minimal replayable HumanSpec fixture that starts from a packed installation and covers bootstrap, human-learning artifacts, verify-shaped records, archive feedback/reconciliation, and next-roadmap context.
+- Keep model-dependent behaviors—oversized-request splitting, learner-level adaptation, progressive hints, no full patch, and learning-evidence judgments—in an explicit human/model checklist rather than claiming deterministic automation.
+- Make the pack-version guard cross-platform, derive the installed package path from `package.json`, and assert that required schemas, workflows, and project-document templates exist in the tarball.
+- Run packed-install smoke coverage in the supported Windows, macOS, and Linux CI matrix, while retaining an appropriately fast default local/CI smoke tier.
 
 ## Capabilities
 
 ### New Capabilities
 
-- `qa-smoke-harness`: Deterministic, sandboxed CLI smoke validation with a single developer entrypoint
+- `developer-qa-workflow`: Repeatable local and CI QA for generic CLI behavior, packed HumanSpec deterministic flows, and clearly separated manual/model teaching checks.
 
 ### Modified Capabilities
 
-- `developer-qa-workflow`: Standardized local/CI QA flow for CLI behavior and migration-sensitive scenarios
+<!-- None. -->
 
 ## Impact
 
-- `Makefile` - Add `qa`, `qa-smoke`, and `qa-interactive` targets
-- `scripts/qa-smoke.sh` (or equivalent) - Implement sandbox setup, scenario execution, and assertions
-- `docs/` - Add/update contributor-facing QA instructions and interactive checklist usage
-- CI workflow - Add smoke target execution as a lightweight regression gate
+- Affects developer QA entrypoints, smoke runner scripts/fixtures, contributor documentation, `scripts/pack-version-check.mjs`, package assertions, and CI workflows.
+- Exercises the runtime, evidence, adaptive-roadmap, and workflow-contract changes without implementing their product behavior inside the test harness.
+- Replaces the existing incomplete proposal/spec split between `qa-smoke-harness` and `developer-qa-workflow` with one coherent new capability.
