@@ -49,6 +49,18 @@ within their declared write boundaries and with explicit learner confirmation;
 treat missing documents as "not yet initialized" rather than assuming their
 content.
 
+**HumanSpec responsibility and handoffs**
+
+- **init** creates or reviews the three project-context documents after the external bootstrap prerequisite is ready, then hands off to **next**.
+- **next** routes one deterministic next action from structured project, roadmap, learner, and change state; it does not perform the handoff automatically.
+- **propose** turns one learner-confirmed slice into planning artifacts and gates the before-practice handoff.
+- **coach** assists the learner with evidence-first explanations and progressive hints while the learner writes implementation and test code.
+- **verify** assesses software and learning evidence, records the latest bounded verification result, and hands off a passing result to **archive**.
+- **archive** synchronizes the confirmed change and reconciles explicitly confirmed roadmap and learner feedback, then hands back to **next**.
+
+Each handoff is a learner-facing recommendation with one next action; no
+workflow claims responsibility owned by a sibling workflow.
+
 **Human implementation ownership**
 
 The human learner writes all application code and all test implementation code.
@@ -62,6 +74,26 @@ Write boundary: this workflow writes review output and the reserved AI verificat
 learner's application or test code.
 
 **Steps**
+
+**Verification finding categories**
+
+Every verification report has three separate categories:
+
+- **Blockers:** evidence-backed failures or missing evidence that prevent the
+  requested disposition. Each blocker includes its contract reference,
+  observed evidence, consequence, and one bounded learner next step.
+- **Suggestions:** non-blocking implementation or review improvements. A
+  suggestion never changes a pass/fail gate into a blocker.
+- **Follow-up learning:** evidence-grounded concepts to revisit or review
+  after this practice. follow-up learning is allowed to be empty; report `none identified`
+  when the evidence supports no additional learning item and do not invent a
+  topic.
+
+Persist only the canonical version-1 typed feedback region in `## AI 验证记录`.
+Map follow-up learning to supported `review:` records, keep `gap:` records
+for supported gaps, and emit `mastered:` only for complete learning evidence.
+The categories are distinct from the learner's reflections and from the
+software disposition.
 
 1. **Select exactly one change before reviewing evidence**
 
@@ -198,7 +230,10 @@ learner's application or test code.
    failed learning evidence and `inconclusive` when that evidence cannot be
    established.
 
-   Report blocking findings separately from suggestions. Every blocker must
+   Report the three independent categories from the shared verification
+   guidance: **blockers**, non-blocking **suggestions**, and **follow-up
+   learning**. Follow-up learning is allowed to be empty when the evidence
+   supports no additional item; do not invent a topic. Every blocker must
    contain all four fields: **contract reference**, **observed evidence**,
    **consequence**, and one bounded **learner next step**. For example, an
    excluded-scope violation cites the proposal statement and changed dependency,
@@ -215,6 +250,15 @@ learner's application or test code.
    /humanspec-coach; a passing review recommends /humanspec-archive. Do not
    execute archive, sync specifications, update the roadmap, or update learner
    history.
+
+   **No complete solution in failure feedback:** when verification is failing
+   or inconclusive, explain the evidence and consequence and give one bounded
+   learner action. Never provide a complete copy-ready implementation, patch,
+   test suite, end-to-end algorithm, or ready-to-apply fix, even when the
+   learner asks for it. Direct implementation back to the learner or to
+   progressive coaching. A local example is allowed only when it is incomplete,
+   bounded to the missing evidence shape, and cannot be pasted to implement the
+   affected behavior.
 
 6. **Update only the reserved AI verification section**
 
@@ -275,9 +319,14 @@ Use this response shape:
   evidence, and relevant project checks; cite each concrete source reference
   and mark it pass, fail, or inconclusive with reproduction details.
 - **Disposition:** overall pass, fail, or inconclusive and the separate
-  learning status. For every blocker, include its contract reference, observed
-  evidence, consequence, and one bounded learner next step; suggestions remain
-  non-blocking.
+  learning status. Report separate **blockers**, non-blocking **suggestions**,
+  and **follow-up learning** (which may be empty). For every blocker, include
+  its contract reference, observed evidence, consequence, and one bounded
+  learner next step; suggestions remain non-blocking.
+- **No-complete-solution boundary:** on a failing or inconclusive result,
+  report evidence, consequence, and one bounded learner action; refuse complete
+  patches, test suites, copy-ready fixes, and end-to-end solutions. A local
+  example must remain incomplete and bounded.
 - **Verification record and ownership:** confirm that exactly one bounded
   version-1 feedback region was replaced only when its heading was unambiguous,
   and that application code, tests, reflections, and task checkboxes were

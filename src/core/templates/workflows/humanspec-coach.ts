@@ -8,8 +8,10 @@
 
 import type { SkillTemplate, CommandTemplate } from '../types.js';
 import {
+  HUMANSPEC_HINT_EVIDENCE_GUIDANCE,
   HUMANSPEC_IMPLEMENTATION_BOUNDARY,
   HUMANSPEC_PROJECT_DOCS,
+  HUMANSPEC_RESPONSIBILITY_GUIDANCE,
   HUMANSPEC_WRITE_BOUNDARIES,
 } from './humanspec-shared.js';
 import { STORE_SELECTION_GUIDANCE } from './store-selection.js';
@@ -111,11 +113,15 @@ const STEPS = `**Steps**
 
 5. **Use learner-controlled progressive hints**
 
-   Every coaching response must label its level, explain the reasoning, and
-   state one next self-directed learner action. Start with the least revealing
-   useful level and escalate one level at a time only after the learner
-   explicitly asks for more specificity or confirms that the current hint did
-   not unblock them:
+   Apply the shared hint-level and learner-owned evidence contract above. Every
+   substantive response must begin with exactly \`Hint level: Level 1\`,
+   \`Hint level: Level 2\`, or \`Hint level: Level 3\`, explain the reasoning,
+   state one next self-directed learner action, and remind the learner to
+   record the level actually used. Keep the learner's requested level separate
+   from the level the coach actually provides and from the level the learner
+   later records. Start with the least revealing useful level and escalate one
+   level at a time only after the learner explicitly asks for more specificity
+   or confirms that the current hint did not unblock them:
 
    - **Level 1 — concept and checking questions:** explain the relevant concept
      and ask checking questions. Do not name a concrete implementation location,
@@ -137,7 +143,11 @@ const STEPS = `**Steps**
 
 6. **Preserve learner ownership and read-only boundaries**
 
-   This coach makes no file writes. The learner writes application code and
+   This coach makes no file writes. If the learner asks the coach to record
+   hint use, stuck evidence, or reflection content, explicitly refuse the write:
+   the learner must record the requested and used levels and their own episode.
+   Provide the concise field shape only; never claim the record was written.
+   The learner writes application code and
    test implementation, records \`开始前\`, \`卡住时的记录\`, and \`完成后\`
    reflections, and marks practice-task checkboxes. Do not edit application or
    test files, learning reflections, planning artifacts, or task checkboxes;
@@ -184,8 +194,12 @@ Use this response shape:
   the learning goal/completion evidence used.
 - **Evidence:** the learner's attempted approach, observation, and hypothesis;
   say when any item is missing rather than filling it in.
-- **Hint level:** Level 1, Level 2, or Level 3, with the reason this level is
+- **Hint level:** start the substantive response with exactly \`Hint level: Level 1\`,
+  \`Hint level: Level 2\`, or \`Hint level: Level 3\`; state why this level is
   appropriate and why escalation did or did not occur.
+- **Requested versus used:** report the learner's requested level separately
+  from the level provided and remind the learner to record the level actually
+  used in their own stuck evidence.
 - **Reasoning and next action:** the concept or diagnosis, one learner-run
   check or experiment, and the next self-directed action.
 - **Ownership/status:** confirm that the learner retains code, test,
@@ -200,6 +214,10 @@ const CONTENT = `${RESPONSIBILITY}
 ${STORE_SELECTION_GUIDANCE}
 
 ${HUMANSPEC_PROJECT_DOCS}
+
+${HUMANSPEC_RESPONSIBILITY_GUIDANCE}
+
+${HUMANSPEC_HINT_EVIDENCE_GUIDANCE}
 
 ${HUMANSPEC_IMPLEMENTATION_BOUNDARY}
 

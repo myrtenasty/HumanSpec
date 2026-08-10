@@ -4,7 +4,10 @@ import {
   getHumanspecInitCommandTemplate,
   getHumanspecInitSkillTemplate,
 } from '../../../src/core/templates/skill-templates.js';
-import { HUMANSPEC_INITIALIZATION_GUIDANCE } from '../../../src/core/templates/workflows/humanspec-shared.js';
+import {
+  HUMANSPEC_INITIALIZATION_GUIDANCE,
+  HUMANSPEC_RESPONSIBILITY_GUIDANCE,
+} from '../../../src/core/templates/workflows/humanspec-shared.js';
 
 const skill = getHumanspecInitSkillTemplate();
 const command = getHumanspecInitCommandTemplate();
@@ -19,10 +22,14 @@ describe('HumanSpec initialization workflow templates', () => {
 
     for (const [label, body] of bodies) {
       expect(body, label).toContain(HUMANSPEC_INITIALIZATION_GUIDANCE);
-      expect(body, label).toContain('openspec init --profile humanspec');
+      expect(body, label).toContain('external project-local CLI bootstrap');
+      expect(body, label).toContain('read-only');
+      expect(body, label).toContain('openspec init --profile humanspec --tools <tool-ids>');
+      expect(body, label).toContain('outside this workflow');
       expect(body, label).toContain('Preview and confirm before any write');
       expect(body, label).toContain('The human learner writes all application code');
-      expect(body, label).toContain('not implemented yet');
+      expect(body, label).toContain(HUMANSPEC_RESPONSIBILITY_GUIDANCE);
+      expect(body, label).not.toContain('HumanSpec roadmap behaviors are not implemented yet');
     }
   });
 
@@ -99,6 +106,31 @@ describe('HumanSpec initialization workflow templates', () => {
       expect(body, label).toContain('data.documents');
       expect(body, label).toContain('registered template');
       expect(body, label).toContain('invent alternate `.yaml`/`.yml` document destinations');
+    }
+  });
+
+  it('covers first-init, partial, repeat, unmarked, rejected, and no-repeat cases', () => {
+    const cases = [
+      ['first-init', ['fresh', 'missing', 'create']],
+      ['partial-doc', ['partial', 'offer to create only the missing documents']],
+      ['valid-repeat', ['valid existing document', 'preserve']],
+      ['unmarked-file', ['existing unmarked user content', 'preserve, convert, or stop']],
+      ['rejected-update', ['byte-for-byte unchanged', 'context was fully refreshed']],
+      ['no-repeat-bootstrap', ['never bootstrap or regenerate', 'read-only prerequisite']],
+    ] as const;
+
+    for (const [label, body] of bodies) {
+      for (const [scenario, markers] of cases) {
+        for (const marker of markers) {
+          expect(body, `${label}: ${scenario}: ${marker}`).toContain(marker);
+        }
+      }
+      expect(body, `${label}: must not contain a runnable bootstrap line`).not.toMatch(
+        /^\s*openspec init(?:\s|$)/imu
+      );
+      expect(body, `${label}: failed bootstrap must stop before writes`).toContain(
+        'no config, generated surface, or project planning document was written'
+      );
     }
   });
 });

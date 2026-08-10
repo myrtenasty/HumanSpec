@@ -10,6 +10,8 @@ import type { SkillTemplate, CommandTemplate } from '../types.js';
 import {
   HUMANSPEC_IMPLEMENTATION_BOUNDARY,
   HUMANSPEC_PROJECT_DOCS,
+  HUMANSPEC_RESPONSIBILITY_GUIDANCE,
+  HUMANSPEC_VERIFY_REPORT_GUIDANCE,
   HUMANSPEC_WRITE_BOUNDARIES,
 } from './humanspec-shared.js';
 import { STORE_SELECTION_GUIDANCE } from './store-selection.js';
@@ -23,6 +25,8 @@ or task choices; record only the latest verification result in the reserved
 AI verification area of learning.md.`;
 
 const STEPS = `**Steps**
+
+${HUMANSPEC_VERIFY_REPORT_GUIDANCE}
 
 1. **Select exactly one change before reviewing evidence**
 
@@ -159,7 +163,10 @@ const STEPS = `**Steps**
    failed learning evidence and \`inconclusive\` when that evidence cannot be
    established.
 
-   Report blocking findings separately from suggestions. Every blocker must
+   Report the three independent categories from the shared verification
+   guidance: **blockers**, non-blocking **suggestions**, and **follow-up
+   learning**. Follow-up learning is allowed to be empty when the evidence
+   supports no additional item; do not invent a topic. Every blocker must
    contain all four fields: **contract reference**, **observed evidence**,
    **consequence**, and one bounded **learner next step**. For example, an
    excluded-scope violation cites the proposal statement and changed dependency,
@@ -176,6 +183,15 @@ const STEPS = `**Steps**
    /humanspec:coach; a passing review recommends /humanspec:archive. Do not
    execute archive, sync specifications, update the roadmap, or update learner
    history.
+
+   **No complete solution in failure feedback:** when verification is failing
+   or inconclusive, explain the evidence and consequence and give one bounded
+   learner action. Never provide a complete copy-ready implementation, patch,
+   test suite, end-to-end algorithm, or ready-to-apply fix, even when the
+   learner asks for it. Direct implementation back to the learner or to
+   progressive coaching. A local example is allowed only when it is incomplete,
+   bounded to the missing evidence shape, and cannot be pasted to implement the
+   affected behavior.
 
 6. **Update only the reserved AI verification section**
 
@@ -236,9 +252,14 @@ Use this response shape:
   evidence, and relevant project checks; cite each concrete source reference
   and mark it pass, fail, or inconclusive with reproduction details.
 - **Disposition:** overall pass, fail, or inconclusive and the separate
-  learning status. For every blocker, include its contract reference, observed
-  evidence, consequence, and one bounded learner next step; suggestions remain
-  non-blocking.
+  learning status. Report separate **blockers**, non-blocking **suggestions**,
+  and **follow-up learning** (which may be empty). For every blocker, include
+  its contract reference, observed evidence, consequence, and one bounded
+  learner next step; suggestions remain non-blocking.
+- **No-complete-solution boundary:** on a failing or inconclusive result,
+  report evidence, consequence, and one bounded learner action; refuse complete
+  patches, test suites, copy-ready fixes, and end-to-end solutions. A local
+  example must remain incomplete and bounded.
 - **Verification record and ownership:** confirm that exactly one bounded
   version-1 feedback region was replaced only when its heading was unambiguous,
   and that application code, tests, reflections, and task checkboxes were
@@ -254,6 +275,8 @@ const CONTENT = `${RESPONSIBILITY}
 ${STORE_SELECTION_GUIDANCE}
 
 ${HUMANSPEC_PROJECT_DOCS}
+
+${HUMANSPEC_RESPONSIBILITY_GUIDANCE}
 
 ${HUMANSPEC_IMPLEMENTATION_BOUNDARY}
 

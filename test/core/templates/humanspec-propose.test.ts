@@ -17,6 +17,11 @@ import {
   PROJECT_DOC_TEMPLATES,
   resolveProjectDocPath,
 } from '../../../src/core/templates/project-docs.js';
+import {
+  HUMANSPEC_CHANGE_SIZING_GUIDANCE,
+  HUMANSPEC_FIT_REPORT_GUIDANCE,
+  HUMANSPEC_SIZING_CRITERIA,
+} from '../../../src/core/templates/workflows/humanspec-shared.js';
 import { getChangeDir, type PlanningHome } from '../../../src/core/planning-home.js';
 
 const skill = getHumanspecProposeSkillTemplate();
@@ -68,8 +73,10 @@ describe('HumanSpec propose workflow templates', () => {
     }
   });
 
-  it('states the one-outcome human-sizing policy and independent evidence', () => {
+  it('states the shared complete human-sizing policy and independent evidence', () => {
     for (const [label, body] of bodies) {
+      expect(body, label).toContain(HUMANSPEC_CHANGE_SIZING_GUIDANCE);
+      expect(body, label).toContain(HUMANSPEC_FIT_REPORT_GUIDANCE);
       expect(body, label).toContain('one observable outcome');
       expect(body, label).toContain('one primary learning goal');
       expect(body, label).toContain('no more than two supporting concepts');
@@ -77,17 +84,36 @@ describe('HumanSpec propose workflow templates', () => {
       expect(body, label).toContain('independently');
       expect(body, label).toContain('configured session budget');
       expect(body, label).toContain('completion evidence');
+      for (const criterion of HUMANSPEC_SIZING_CRITERIA) {
+        expect(body, `${label}: ${criterion.id}`).toContain(`[${criterion.id}]`);
+      }
     }
   });
 
   it('requires bounded candidate slices for oversized or multi-outcome requests', () => {
     for (const [label, body] of bodies) {
       expect(body, label).toContain('multiple independent outcomes');
+      expect(body, label).toContain('multiple frameworks or infrastructure');
+      expect(body, label).toContain('multiple unfamiliar core concepts');
+      expect(body, label).toContain('whole-module/system');
+      expect(body, label).toContain('missing single completion evidence');
+      expect(body, label).toContain('cognitive load');
       expect(body, label).toContain('bounded set of candidate slices');
       expect(body, label).toContain('conversation-only planning output');
       expect(body, label).toContain('select at most one candidate');
       expect(body, label).toContain('never create more than one change');
       expect(body, label).toContain('update the roadmap');
+    }
+  });
+
+  it('reports roadmap-external impact before confirmation', () => {
+    for (const [label, body] of bodies) {
+      expect(body, label).toContain('not represented by the confirmed roadmap');
+      expect(body, label).toContain('preserve');
+      expect(body, label).toContain('interrupt');
+      expect(body, label).toContain('replace');
+      expect(body, label).toContain('extend');
+      expect(body, label).toContain('before confirmation');
     }
   });
 

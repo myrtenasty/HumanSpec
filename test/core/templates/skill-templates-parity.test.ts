@@ -76,20 +76,20 @@ const EXPECTED_FUNCTION_HASHES: Record<string, string> = {
   getFeedbackSkillTemplate: 'd7d83c5f7fc2b92fe8f4588a5bf2d9cb315e4c73ec19bcd5ef28270906319a0d',
   getUpdateChangeSkillTemplate: '09b98dfcf4b524c4ba00c312ad14d8c499adca43b9de78cf1153f1d48fbe26b2',
   getOpsxUpdateCommandTemplate: '14673180d9896222ef3888d51785ccc8513973b6bf11a8f19e7b5bc76ec8ee6b',
-  getHumanspecInitSkillTemplate: '92906bd2cc349ae945d96af844e499ff6968c206d7b4f07ade16922b40aa7b64',
-  getHumanspecInitCommandTemplate: '68ec970e65382fdd0e284d84b83b975203c32f06688ef411997091e10e01a0f0',
-  getHumanspecNextSkillTemplate: '5e997149aa5d576ec620d7ab6153727ac046464cdf39d1b7e54425f196b6234e',
-  getHumanspecNextCommandTemplate: '1f6b03071b5bc3ec1cb46e441ab0145ba03affa76129d7f60e3062dc0a8f69c0',
-  getHumanspecProposeSkillTemplate: 'f2f9898822b4aefddbfb6fdedb88fd5707eef9b2f139d86c40261e6762100387',
-  getHumanspecProposeCommandTemplate: '9078dba69e3c9a027154d48236df9db2b67be49bd79689e9a1d5ad95c48e11fc',
-  getHumanspecCoachSkillTemplate: '6b28bc1e75834167d3dc55fb45eda53050916b07e3539f16533320f4a79c4749',
-  getHumanspecCoachCommandTemplate: 'aba98ec8aac7740ef4d0ac5e6bb7ecd00f5e26054622e0b649b245928b123463',
-  getHumanspecVerifySkillTemplate: 'af9a42cc5cc3df4cd47953342f4dca6b76849118e15a72e02ff68c6f3f0580dd',
-  getHumanspecVerifyCommandTemplate: 'fd87c66711dd110a88a935510f72f92276c61941efe055a7aeb44658f379bf5a',
-  getHumanspecArchiveSkillTemplate: '884baba03d96663d56311bb914dca6abff8653e229b88c8247d9ac1114e5fb47',
-  getHumanspecArchiveCommandTemplate: '3816413ea79d25a34706c71aa3ac7231dc77dadab56b2e9df32741325c62acf2',
-  getHumanspecExploreSkillTemplate: '14bef5375776f4ffadf43c9ab5db8826e9d7d133c1f5fec186b03d4f01d4be88',
-  getHumanspecExploreCommandTemplate: 'd4586258e8945c0ee6c6038f76d1e0085ecb377048ec082ea04cbd5134ef44ec',
+  getHumanspecInitSkillTemplate: 'cd5dc057a391f0063da49273ecfdd086c048766fe875ce91d6757ee275e5d975',
+  getHumanspecInitCommandTemplate: '616e018c436725b2986c50b87363e326d432062dea4e935de5895d4674196639',
+  getHumanspecNextSkillTemplate: 'be71a88637821e2bc5d068a3c89b2bb12d27571c0e7e044f14e3ae1bfe4801c4',
+  getHumanspecNextCommandTemplate: '8f068faa0578c7984f6c6cf723c05e4dc701b4079693ff3ef2d5f5ebeeb6f688',
+  getHumanspecProposeSkillTemplate: '6a06cc983bf9fd95fa4cd1495b83db0d8dbae0278b4314ebafedf2a432b577f3',
+  getHumanspecProposeCommandTemplate: 'f21e4c9aa39c321ec7e80e93f6a2f12cde9d0437ca745a8dc6d8486b0ebf6129',
+  getHumanspecCoachSkillTemplate: '4fbdeb73ecda6435bd0ca848b989d86f8ccb7c4ab669ebf25f86ef455ad44f6b',
+  getHumanspecCoachCommandTemplate: 'f550c1f13e60697110731c52449db19daf0c8393af0800cb1bf16588fef0488a',
+  getHumanspecVerifySkillTemplate: '8789db1032b9ec8b01575140dbab47133cab48530f644bf63b553a1d9d7c6278',
+  getHumanspecVerifyCommandTemplate: 'f55812a5e64c4b63233088bb3287a13acea9c058f376d0e9443ed76c6142c5bc',
+  getHumanspecArchiveSkillTemplate: 'cdabae531abf6248d5b60ec03e2f7bcdcc443ceabaa18d1aa4dd03e65218a5da',
+  getHumanspecArchiveCommandTemplate: 'c0e6608eea6fdcec82d860b944d85c6e7ac12973a7d42b80a092aa8eccdb9c1f',
+  getHumanspecExploreSkillTemplate: '7cd3c5164765487d47901348d3d273a0057bac838bad7ba1675da242edb87087',
+  getHumanspecExploreCommandTemplate: '6292d272ad1b2b7d91ce2560f470c6a0094bf5dc255369ddff517839646a4f10',
 };
 
 const EXPECTED_GENERATED_SKILL_CONTENT_HASHES: Record<string, string> = {
@@ -105,13 +105,13 @@ const EXPECTED_GENERATED_SKILL_CONTENT_HASHES: Record<string, string> = {
   'openspec-onboard': 'e3708c9a4132c4e07a896cf7867340ff77ae95cda56846b30dc61957ea2c793e',
   'openspec-propose': 'c7e03240cb1d67e9d16cd034bd96dd91f1145ef6d1d2a59f01c282cf95d05ba8',
   'openspec-update-change': 'd49058a47ab6e1ac882446da80f8fe975921890444ac1698708d736d2ad5916c',
-  'humanspec-init': '3a7def502630bc0e20a254697b00ed5df052c9c0c760178ef97dd23ae05631d3',
-  'humanspec-next': 'a1392b6eb50d19f653032a4d472c8cf7f384f1ab53ad12384fddada11fc530c0',
-  'humanspec-propose': '64b4705e93ca834beafc2373b074f165c4c7f0822edd3027512a96379133a1d9',
-  'humanspec-coach': '5250d4524257c818299af9c857d59f502ce6ea191b8f9b20cdc7d0567e8c4ef1',
-  'humanspec-verify': '412cc78ce71cb6d1393cb7008410e7b04235a8ffe66a241177b311ba8fb5b8f8',
-  'humanspec-archive': 'cc86a3507f86b16c5b27219475d358385e38deb7e7d3f416f2f62ea66f0edef3',
-  'humanspec-explore': '11ec81bd6eb7faf2e8f5950a6dd2d6695213a42b746588e0de55f18ce5c9d1c9',
+  'humanspec-init': '13cf921bff5e3eb3055a9ad5b318bea15c2652252a20b7816659d39bd579502a',
+  'humanspec-next': '7c4ed0cbea89e863689ff6fc7c2982723c852308d35a6cf0eb1754857333015f',
+  'humanspec-propose': '4d7c7dffd35435913cb9f6972d95b410004f7fbfad35e3077da00f157e251fe2',
+  'humanspec-coach': 'f656bc023427c34b2e210971693ca5f555003617acbec32e72746a956593dba4',
+  'humanspec-verify': '4f2acdcd6483729185fe37df3a957c08b792381a8900469ce21e208e78946d38',
+  'humanspec-archive': 'f4e99d31b0bc0d6bf7a338ed92d39f24f83a8a3e7e32d0cf1616dba11e8ffd10',
+  'humanspec-explore': 'd4951fc30ba241d6ff8ba27b527f4f8a753d4eb8c06d7f50e422746fb6d7d5f6',
 };
 
 // Intentionally excludes getFeedbackSkillTemplate: this list only models templates
@@ -258,6 +258,29 @@ describe('skill templates split parity', () => {
     // Feedback has no store-capable command and intentionally carries no
     // store teaching; it ships outside both registries.
     expect(getFeedbackSkillTemplate().instructions).not.toContain('**Store selection:**');
+  });
+
+  it('keeps every generated surface free of stale HumanSpec contract wording', () => {
+    const stalePhrases = [
+      'Bootstrap the project-local profile',
+      'HumanSpec roadmap behaviors are not implemented yet',
+      'Name one fitting remaining slice',
+    ];
+    const generatedSkills = getSkillTemplates().map(({ dirName, template }) => [
+      `skill:${dirName}`,
+      generateSkillContent(template, 'PARITY-BASELINE'),
+    ] as const);
+    const generatedCommands = getCommandContents().map((entry) => [
+      `command:${entry.namespace ?? 'opsx'}:${entry.id}`,
+      entry.body,
+    ] as const);
+
+    for (const [surface, content] of [...generatedSkills, ...generatedCommands]) {
+      for (const stale of stalePhrases) {
+        expect(content, `${surface}: ${stale}`).not.toContain(stale);
+      }
+      expect(content, surface).not.toContain('fitting remaining slice');
+    }
   });
 
   it('generates no workspace-planning residue in any workflow template (4.1)', () => {

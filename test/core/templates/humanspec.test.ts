@@ -16,7 +16,11 @@ import {
   getHumanspecArchiveCommandTemplate,
   getHumanspecExploreCommandTemplate,
 } from '../../../src/core/templates/skill-templates.js';
-import { HUMANSPEC_IMPLEMENTATION_BOUNDARY, HUMANSPEC_PROJECT_DOCS } from '../../../src/core/templates/workflows/humanspec-shared.js';
+import {
+  HUMANSPEC_IMPLEMENTATION_BOUNDARY,
+  HUMANSPEC_PROJECT_DOCS,
+  HUMANSPEC_RESPONSIBILITY_GUIDANCE,
+} from '../../../src/core/templates/workflows/humanspec-shared.js';
 
 const SKILL_FACTORIES: Array<[string, () => { name: string; instructions: string }]> = [
   ['humanspec-init', getHumanspecInitSkillTemplate],
@@ -142,7 +146,7 @@ describe('HumanSpec workflow templates', () => {
     }
   });
 
-  it('does not claim later roadmap behaviors as already implemented', () => {
+  it('uses stable responsibility handoffs instead of historical feature status', () => {
     const laterBehaviors = [
       'reflection gate',
       'adaptive routing',
@@ -152,15 +156,18 @@ describe('HumanSpec workflow templates', () => {
     ];
     for (const [id, factory] of SKILL_FACTORIES) {
       const instructions = factory().instructions;
+      expect(instructions, id).toContain(HUMANSPEC_RESPONSIBILITY_GUIDANCE);
+      expect(instructions, id).not.toContain('not implemented yet');
       for (const behavior of laterBehaviors) {
         expect(instructions, `${id}: must not claim "${behavior}"`).not.toMatch(
           new RegExp(`(implements|provides|runs|updates) .*${behavior}`, 'i')
         );
       }
-      // Honest templates say what is NOT there yet.
-      expect(instructions, id).toMatch(
-        /later[^\n]*roadmap|not[\s\S]{0,100}yet|does not[\s\S]{0,100}yet/i
-      );
+    }
+    for (const [id, factory] of COMMAND_FACTORIES) {
+      const content = factory().content;
+      expect(content, id).toContain(HUMANSPEC_RESPONSIBILITY_GUIDANCE);
+      expect(content, id).not.toContain('not implemented yet');
     }
   });
 

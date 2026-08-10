@@ -1,10 +1,10 @@
 /**
  * HumanSpec Init Workflow Template
  *
- * Initializes the project's HumanSpec learning setup: it runs the project-local
- * CLI bootstrap, conducts the project and learner context conversation, and
- * safely creates or reviews the three HumanSpec project documents. It does not
- * implement the later routing, verification, or learning-history behavior.
+ * Initializes the project's HumanSpec learning setup after the external
+ * project-local CLI bootstrap, inspects the registered surfaces, conducts the
+ * project and learner context conversation, and safely creates or reviews the
+ * three HumanSpec project documents.
  */
 
 import type { SkillTemplate, CommandTemplate } from '../types.js';
@@ -12,41 +12,56 @@ import {
   HUMANSPEC_IMPLEMENTATION_BOUNDARY,
   HUMANSPEC_INITIALIZATION_GUIDANCE,
   HUMANSPEC_PROJECT_DOCS,
+  HUMANSPEC_RESPONSIBILITY_GUIDANCE,
   HUMANSPEC_WRITE_BOUNDARIES,
 } from './humanspec-shared.js';
 import { STORE_SELECTION_GUIDANCE } from './store-selection.js';
 
 const INLINE_CODE = '`';
-const CODE_FENCE = '```';
 
-const RESPONSIBILITY = `Initialize a HumanSpec project: run the project-local openspec bootstrap,
-confirm the HumanSpec workflow profile, then conduct a learner-confirmed
-conversation that creates or safely reviews project.md, roadmap.md, and
-learner.md under the project's openspec/ directory. Keep implementation
-ownership with the learner and keep initialization project-local.`;
+const RESPONSIBILITY = `Initialize a HumanSpec project after the external project-local CLI bootstrap.
+Inspect the effective HumanSpec profile and registered workflow surfaces, then
+conduct a learner-confirmed conversation that creates or safely reviews
+project.md, roadmap.md, and learner.md under the project's openspec/ directory.
+Keep implementation ownership with the learner, keep initialization
+project-local, and never bootstrap or regenerate the profile from this
+workflow.`;
 
 const STEPS = `**Steps**
 
-1. **Bootstrap the project-local profile**: confirm the project directory and
-   the AI tools to configure, then run:
+1. **Inspect the external bootstrap prerequisite (read-only)**: confirm the
+   project root and inspect the existing project-local
+   ${INLINE_CODE}openspec/config.yaml${INLINE_CODE}; do not execute, repeat, simulate, or delegate
+   ${INLINE_CODE}openspec init${INLINE_CODE} from inside this workflow. The CLI bootstrap is required
+   before this conversation can create project context documents.
 
-   ${CODE_FENCE}bash
-   openspec init --profile humanspec --tools <tool-ids>
-   ${CODE_FENCE}
+   If the config or generated surfaces are missing or inconsistent, stop before
+   document planning and every write. Report the observed prerequisite failure
+   and show this actionable repair command for the learner to run **outside
+   this workflow**:
 
-   (or run ${INLINE_CODE}openspec init${INLINE_CODE} interactively and select the HumanSpec profile).
-   This CLI bootstrap is required before this conversation creates project
-   context documents. Do not replace it with a global installation.
+   ${INLINE_CODE}openspec init --profile humanspec --tools <tool-ids>${INLINE_CODE}
 
-2. **Verify the bootstrap**: confirm that ${INLINE_CODE}openspec/config.yaml${INLINE_CODE} records
-   ${INLINE_CODE}profile: humanspec${INLINE_CODE} and that the generated skill directories are
-   ${INLINE_CODE}humanspec-<action>${INLINE_CODE} (init, next, propose, coach, verify, archive,
-   explore) with no ${INLINE_CODE}openspec-apply-change${INLINE_CODE} skill. If bootstrap failed,
-   stop and report the concrete CLI error before discussing document writes.
+   The learner may instead run ${INLINE_CODE}openspec init${INLINE_CODE} interactively and select the
+   HumanSpec profile. Do not replace the external repair with a global
+   installation or run it on the learner's behalf.
 
-3. **Resolve and classify the project context before writing**: resolve the
-   current project root and the three registered document paths using the
-   shared initialization contract. Read every path before drafting content.
+2. **Validate the effective profile and registered surfaces**: confirm that
+   ${INLINE_CODE}openspec/config.yaml${INLINE_CODE} resolves to ${INLINE_CODE}profile: humanspec${INLINE_CODE}, that every
+   explicitly registered HumanSpec workflow surface (init, next, propose,
+   coach, verify, archive, explore) is present under the selected planning
+   home, and that no public ${INLINE_CODE}openspec-apply-change${INLINE_CODE} or
+   ${INLINE_CODE}humanspec-apply${INLINE_CODE} surface is exposed. This is read-only prerequisite
+   inspection: init must not update config, regenerate skills/commands, or
+   repair surfaces. If any check fails, report the exact missing or conflicting
+   registration and stop before document planning/writes.
+
+3. **Resolve and classify the project context before writing**: only after
+   the bootstrap/profile/surface checks pass, run the public context inspection
+   and confirm its planning home contains all three explicitly registered
+   document entries. Resolve the current project root and those registered
+   document paths using the shared initialization contract. Read every path
+   before drafting content.
    Classify each as missing, valid HumanSpec, malformed/invalid HumanSpec, or
    existing unmarked user content. Also report the aggregate project state as
    fresh, partial, or blocked. Do not treat file existence alone as permission
@@ -93,9 +108,9 @@ const STEPS = `**Steps**
    and continue without claiming a fully refreshed context.
 
 8. **Write only the confirmed planning documents**: after confirmation, write
-   only the affected registered project documents and, when needed, the CLI
-   bootstrap's ${INLINE_CODE}openspec/config.yaml${INLINE_CODE}. Never write application source,
-   test implementation files, or change artifacts. Preserve rejected files and
+   only the affected registered project documents. Never write the external CLI
+   bootstrap's ${INLINE_CODE}openspec/config.yaml${INLINE_CODE}, generated skills or commands, application
+   source, test implementation files, or change artifacts. Preserve rejected files and
    preserve unmarked files when the learner chooses the preserve option. If an
    unmarked file is encountered, explicitly offer preserve, convert, or stop;
    conversion or replacement always requires confirmation.
@@ -110,25 +125,33 @@ const STEPS = `**Steps**
 
 const OUTPUT = `**Output**
 
-Summarize the bootstrap (config location, effective profile, and generated tool
-surfaces) separately from the document result. List the resolved paths for
+Summarize the prerequisite inspection (config location, effective profile,
+explicitly registered generated tool surfaces, and public-apply absence)
+separately from the document result. If it fails, output
+\`bootstrap-not-ready\`, the observed failure, the external repair command, and the explicit statement
+that no config, generated surface, or project planning document was written.
+List the resolved paths for
 ${INLINE_CODE}openspec/project.md${INLINE_CODE}, ${INLINE_CODE}openspec/roadmap.md${INLINE_CODE}, and ${INLINE_CODE}openspec/learner.md${INLINE_CODE},
 their states (created, preserved, updated, converted, or blocked), and any
 unresolved values or file blockers. State that the learner writes application
 and test implementation files. Recommend ${INLINE_CODE}/humanspec:next${INLINE_CODE} only for a valid,
 confirmed ready context.
 
-Be explicit that this workflow does not claim adaptive routing, reflection
-gates, learning-history updates, or learning-aware archive behavior. Those later
-HumanSpec roadmap behaviors are not implemented yet. It also does not create
-changes or write implementation code; those responsibilities remain outside
-initialization.`;
+Report the responsibility handoff explicitly: init owns project-context
+inspection and confirmed document creation/review; next owns routing; propose
+owns planning artifacts; coach owns progressive assistance; verify owns
+software/learning assessment; and archive owns canonical synchronization and
+confirmed feedback reconciliation. Do not claim that a sibling workflow is
+unavailable merely because init does not perform its responsibility. Init does
+not create changes or write implementation code.`;
 
 const CONTENT = `${RESPONSIBILITY}
 
 ${STORE_SELECTION_GUIDANCE}
 
 ${HUMANSPEC_PROJECT_DOCS}
+
+${HUMANSPEC_RESPONSIBILITY_GUIDANCE}
 
 ${HUMANSPEC_IMPLEMENTATION_BOUNDARY}
 

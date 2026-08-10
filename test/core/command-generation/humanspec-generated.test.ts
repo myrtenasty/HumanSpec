@@ -12,6 +12,37 @@ const HUMANSPEC_ACTIONS = HUMANSPEC_WORKFLOWS.map((workflow) => workflow.replace
 const NAMESPACED_TOOLS = ['claude', 'codebuddy', 'crush', 'gemini', 'lingma', 'qoder', 'zcode'];
 const FLAT_TOOLS = ['cursor', 'opencode', 'pi', 'qwen', 'bob', 'oh-my-pi', 'junie', 'roocode'];
 
+const HUMANSPEC_NEXT_PATH_PARTS: Record<string, string[]> = {
+  'amazon-q': ['.amazonq', 'prompts', 'humanspec-next.md'],
+  antigravity: ['.agent', 'workflows', 'humanspec-next.md'],
+  auggie: ['.augment', 'commands', 'humanspec-next.md'],
+  bob: ['.bob', 'commands', 'humanspec-next.md'],
+  claude: ['.claude', 'commands', 'humanspec', 'next.md'],
+  cline: ['.clinerules', 'workflows', 'humanspec-next.md'],
+  codebuddy: ['.codebuddy', 'commands', 'humanspec', 'next.md'],
+  continue: ['.continue', 'prompts', 'humanspec-next.prompt'],
+  costrict: ['.cospec', 'openspec', 'commands', 'humanspec-next.md'],
+  crush: ['.crush', 'commands', 'humanspec', 'next.md'],
+  cursor: ['.cursor', 'commands', 'humanspec-next.md'],
+  devin: ['.devin', 'workflows', 'humanspec-next.md'],
+  factory: ['.factory', 'commands', 'humanspec-next.md'],
+  gemini: ['.gemini', 'commands', 'humanspec', 'next.toml'],
+  'github-copilot': ['.github', 'prompts', 'humanspec-next.prompt.md'],
+  iflow: ['.iflow', 'commands', 'humanspec-next.md'],
+  junie: ['.junie', 'commands', 'humanspec-next.md'],
+  kilocode: ['.kilocode', 'workflows', 'humanspec-next.md'],
+  kiro: ['.kiro', 'prompts', 'humanspec-next.prompt.md'],
+  lingma: ['.lingma', 'commands', 'humanspec', 'next.md'],
+  'oh-my-pi': ['.omp', 'commands', 'humanspec-next.md'],
+  opencode: ['.opencode', 'commands', 'humanspec-next.md'],
+  pi: ['.pi', 'prompts', 'humanspec-next.md'],
+  qoder: ['.qoder', 'commands', 'humanspec', 'next.md'],
+  qwen: ['.qwen', 'commands', 'humanspec-next.md'],
+  roocode: ['.roo', 'commands', 'humanspec-next.md'],
+  trae: ['.trae', 'commands', 'humanspec-next.md'],
+  zcode: ['.zcode', 'commands', 'humanspec', 'next.md'],
+};
+
 describe('HumanSpec generated output', () => {
   it('projects exactly the seven humanspec commands for the profile', () => {
     const contents = getCommandContents(getProfileWorkflows('humanspec'));
@@ -57,6 +88,22 @@ describe('HumanSpec generated output', () => {
         expect(fileContent, `${toolId} ${action}`).toMatch(/\/humanspec-[a-z-]+/);
         expect(fileContent, `${toolId} ${action}`).not.toMatch(/\/humanspec:[a-z-]+/);
       }
+    }
+  });
+
+  it('uses path.join expectations for every registered adapter on the affected HumanSpec surface', () => {
+    const content = getCommandContents(getProfileWorkflows('humanspec')).find(
+      (entry) => entry.id === 'next'
+    )!;
+
+    expect(CommandAdapterRegistry.getAll().map((adapter) => adapter.toolId).sort()).toEqual(
+      Object.keys(HUMANSPEC_NEXT_PATH_PARTS).sort()
+    );
+    for (const adapter of CommandAdapterRegistry.getAll()) {
+      const generated = generateCommand(content, adapter);
+      expect(generated.path, adapter.toolId).toBe(
+        path.join(...HUMANSPEC_NEXT_PATH_PARTS[adapter.toolId]!)
+      );
     }
   });
 

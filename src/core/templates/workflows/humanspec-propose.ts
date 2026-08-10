@@ -8,8 +8,11 @@
 
 import type { SkillTemplate, CommandTemplate } from '../types.js';
 import {
+  HUMANSPEC_CHANGE_SIZING_GUIDANCE,
+  HUMANSPEC_FIT_REPORT_GUIDANCE,
   HUMANSPEC_IMPLEMENTATION_BOUNDARY,
   HUMANSPEC_PROJECT_DOCS,
+  HUMANSPEC_RESPONSIBILITY_GUIDANCE,
   HUMANSPEC_WRITE_BOUNDARIES,
 } from './humanspec-shared.js';
 import { STORE_SELECTION_GUIDANCE } from './store-selection.js';
@@ -21,6 +24,10 @@ human-learning planning artifacts for the confirmed slice. The learner, not
 this workflow, implements the application and test code.`;
 
 const STEPS = `**Steps**
+
+${HUMANSPEC_CHANGE_SIZING_GUIDANCE}
+
+${HUMANSPEC_FIT_REPORT_GUIDANCE}
 
 1. **Resolve context before planning**: run
    \`openspec humanspec context inspect --json\` with the selected-root or
@@ -47,30 +54,37 @@ const STEPS = `**Steps**
    budget. Ask the learner to confirm one observable outcome for a user or
    downstream system, one primary learning goal, up to two supporting concepts,
    and the evidence that will demonstrate completion. Treat learner-provided
-   answers as authoritative; do not infer personal facts from the project.
+   answers as authoritative; do not infer personal facts from the project. If
+   the request is not represented by the confirmed roadmap, do not reject it
+   solely for being new: report whether accepting it would **preserve**,
+   **interrupt**, **replace**, or **extend** the active learning path and ask
+   for that impact decision before confirmation.
 
-3. **Size the plan explicitly**: produce one outcome, one primary learning goal,
-   no more than two supporting concepts, and two to five independently
-   understandable and verifiable practice tasks in dependency order. Every task must fit the learner's configured session budget and name its completion evidence. The complete task set, not just the implementation task, must fit
-   that budget. Do not add filler tasks to satisfy the count; revise the slice
-   instead.
+3. **Size the plan explicitly with the shared contract**: evaluate every
+   criterion in the shared sizing block above and include its ID and evidence
+   in the fit/oversized report. A fit plan still has one outcome, one primary
+   learning goal, at most two supporting concepts, two to five independently
+   understandable and verifiable practice tasks in dependency order, one clear
+   completion evidence, and a complete task set that fits the configured budget.
+   Do not add filler tasks; revise the slice when any criterion is unresolved.
 
-4. **Split oversized requests before creating anything**: treat multiple independent outcomes, more than five tasks, a request over the
-   session budget, or a long architecture/design effort as too large. Explain the
-   reason and present a bounded set of candidate slices. Each candidate must
-   have one observable outcome, one primary learning focus, at most two
-   supporting concepts, and a two-to-five-task evidence plan that fits the
-   session budget. Candidates are conversation-only planning output: do not
-   create a change directory, update the roadmap, or run \`openspec new change\`
-   for them. Ask the learner to select at most one candidate, revise the request,
-   or stop; do not proceed until one slice is explicitly selected.
+4. **Split oversized requests before creating anything**: classify a request as
+   oversized or unresolved when any shared criterion is violated, including
+   multiple independent outcomes, multiple frameworks or infrastructure
+   components, multiple unfamiliar core concepts, whole-module/system wording,
+   missing single completion evidence, excessive cognitive load, or a plan over
+   the session budget. Show the violated criterion IDs and a bounded set of
+   smaller independently verifiable candidate slices. Candidates are conversation-only planning output: do not create a change directory or update the roadmap; do not run \`openspec new change\` for them. Present a bounded set of candidate slices; ask the learner to select at most one candidate, refine
+   the request, or stop; do not proceed
+   until one slice is explicitly selected.
 
 5. **Preview and confirm exactly one plan**: before any change command, show a
    preview containing the selected planning-home/root, resolved context paths,
-   change name, observable outcome, primary goal, supporting concepts, session
-   budget, task list with independent evidence, scope, and the behavior-delta
-   decision (delta specs or \`skip_specs\`). Ask for explicit learner
-   confirmation of this one plan. A rejection leaves change artifacts unchanged
+   change name, the shared fit/oversized report, observable outcome, primary
+   goal, supporting concepts, session budget, task list with independent
+   evidence, scope, roadmap impact, and the behavior-delta decision (delta
+   specs or \`skip_specs\`). Ask for explicit learner confirmation of this one
+   plan. A rejection leaves change artifacts unchanged
    and allows revision, another candidate, or stopping. Never infer consent and
    never create more than one change from a single propose conversation.
 
@@ -119,10 +133,11 @@ const STEPS = `**Steps**
 const OUTPUT = `**Output**
 
 Report the selected planning home, resolved project-document paths and their
-readiness, the single confirmed change name, its observable outcome, primary
-learning goal, supporting concepts, session budget, task count, completion
-evidence, and the planning artifacts written. State whether the change uses
-behavioral delta specs or the explicit \`skip_specs\` path. If the plan was
+readiness, the single confirmed change name, its shared fit/oversized report,
+roadmap impact, observable outcome, primary learning goal, supporting concepts,
+session budget, task count, completion evidence, and the planning artifacts
+written. State whether the change uses behavioral delta specs or the explicit
+\`skip_specs\` path. If the plan was
 rejected, oversized, blocked, or awaiting before-practice reflection, report
 that state and the learner's concrete next action; do not claim a change was
 created or ready when it was not.
@@ -139,6 +154,8 @@ const CONTENT = `${RESPONSIBILITY}
 ${STORE_SELECTION_GUIDANCE}
 
 ${HUMANSPEC_PROJECT_DOCS}
+
+${HUMANSPEC_RESPONSIBILITY_GUIDANCE}
 
 ${HUMANSPEC_IMPLEMENTATION_BOUNDARY}
 

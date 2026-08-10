@@ -8,8 +8,11 @@
 
 import type { SkillTemplate, CommandTemplate } from '../types.js';
 import {
+  HUMANSPEC_CHANGE_SIZING_GUIDANCE,
+  HUMANSPEC_FIT_REPORT_GUIDANCE,
   HUMANSPEC_IMPLEMENTATION_BOUNDARY,
   HUMANSPEC_PROJECT_DOCS,
+  HUMANSPEC_RESPONSIBILITY_GUIDANCE,
   HUMANSPEC_WRITE_BOUNDARIES,
 } from './humanspec-shared.js';
 import { STORE_SELECTION_GUIDANCE } from './store-selection.js';
@@ -21,6 +24,10 @@ JSON outputs, make uncertainty visible, and report one bounded handoff while
 preserving the learner's ownership of implementation and learning evidence.`;
 
 const STEPS = `**Steps**
+
+${HUMANSPEC_CHANGE_SIZING_GUIDANCE}
+
+${HUMANSPEC_FIT_REPORT_GUIDANCE}
 
 1. **Resolve the selected planning root and project context first**: follow the
    store-selection rules above, then run
@@ -91,15 +98,24 @@ const STEPS = `**Steps**
      a roadmap candidate or re-propose the archived change until reconciliation
      is complete.
    - For a \`ready\` result, use only its returned parseable candidate slices,
-     archived-change exclusion, and learner records. Name one fitting remaining
-     slice, explain its fit using the returned active milestone and durable
-     \`mastered:\`, \`gap:\`, and \`review:\` records, and hand off to
+     archived-change exclusion, and learner records. Evaluate each remaining
+     candidate against every criterion in the shared sizing block and render
+     the complete fit/oversized report with criterion IDs and evidence. Name
+     one remaining slice only when its classification is \`fit\`, explain its
+     fit using the returned active milestone and durable \`mastered:\`, \`gap:\`,
+     and \`review:\` records, and hand off the unchanged candidate identity to
      \`/humanspec:propose\`. If more than one candidate remains plausible,
-     present the bounded alternatives with their evidence and require the
+     present the bounded alternatives with their reports and require the
      learner to select one; never silently choose. Preserve propose's explicit
      confirmation gate: never run
      \`openspec new change\`, create a change directory, or create artifacts
      from this route without that confirmation.
+   - If any candidate is \`oversized\` or \`unresolved\` under the shared
+     contract, do not describe it as fitting or select it silently. Show the
+     violated criterion IDs and route to learner-confirmed refinement or propose
+     splitting into smaller slices. Do not create the oversized
+     candidate, update the roadmap, or choose a replacement without the
+     learner's explicit decision.
    - For an \`empty\` result with \`no-confirmed-candidate\`, report that the
      roadmap intentionally has no confirmed candidate after archive or learner
      rejection. Invite the learner to explore or explicitly propose a direction,
@@ -210,14 +226,18 @@ name the task or reflection section and the registered HumanSpec action
 (\`/humanspec:init\`, \`/humanspec:propose\`, \`/humanspec:coach\`,
 \`/humanspec:verify\`, or \`/humanspec:archive\`). For reconciliation,
 include the exact archived change and pending document; for a later candidate,
-include the archived-slice exclusion and the updated milestone/mastered/gap/
-review evidence used for the fit.`;
+include the shared fit/oversized report, archived-slice exclusion, and the
+updated milestone/mastered/gap/review evidence used for the fit. If a
+candidate is oversized or unresolved, include its violated criterion IDs and
+the learner-confirmed refinement or split action instead of selecting it.`;
 
 const CONTENT = `${RESPONSIBILITY}
 
 ${STORE_SELECTION_GUIDANCE}
 
 ${HUMANSPEC_PROJECT_DOCS}
+
+${HUMANSPEC_RESPONSIBILITY_GUIDANCE}
 
 ${HUMANSPEC_IMPLEMENTATION_BOUNDARY}
 

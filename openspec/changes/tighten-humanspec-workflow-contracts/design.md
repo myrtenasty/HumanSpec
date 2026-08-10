@@ -91,3 +91,13 @@ The later `unify-template-generation-pipeline` change migrates these stable outp
 6. Run behavioral template, profile/update/cleanup, cross-platform, and packed-surface tests.
 
 Rollback reverts canonical templates and their generated projections together. No project data format or public CLI operation is introduced by this change.
+
+### Deferred unified-manifest follow-up
+
+The explicit workflow registrations, template factories, and projection parity
+fixtures remain unchanged by this change. The separate
+`unify-template-generation-pipeline` change may later migrate those registrations
+to one manifest and derive profile, skill, command, cleanup, and parity metadata
+from it. That architectural refactor is a follow-up only: this change must not
+add a second manifest, delete the current registries, or use filesystem globs to
+change ownership of generated surfaces.

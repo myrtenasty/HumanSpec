@@ -47,6 +47,18 @@ within their declared write boundaries and with explicit learner confirmation;
 treat missing documents as "not yet initialized" rather than assuming their
 content.
 
+**HumanSpec responsibility and handoffs**
+
+- **init** creates or reviews the three project-context documents after the external bootstrap prerequisite is ready, then hands off to **next**.
+- **next** routes one deterministic next action from structured project, roadmap, learner, and change state; it does not perform the handoff automatically.
+- **propose** turns one learner-confirmed slice into planning artifacts and gates the before-practice handoff.
+- **coach** assists the learner with evidence-first explanations and progressive hints while the learner writes implementation and test code.
+- **verify** assesses software and learning evidence, records the latest bounded verification result, and hands off a passing result to **archive**.
+- **archive** synchronizes the confirmed change and reconciles explicitly confirmed roadmap and learner feedback, then hands back to **next**.
+
+Each handoff is a learner-facing recommendation with one next action; no
+workflow claims responsibility owned by a sibling workflow.
+
 **Human implementation ownership**
 
 The human learner writes all application code and all test implementation code.
@@ -61,6 +73,38 @@ Write boundary: this workflow writes change planning artifacts only
 write application or test implementation code.
 
 **Steps**
+
+**Shared HumanSpec change-sizing contract (v1)**
+
+Evaluate every candidate against every criterion below and retain the criterion
+ID with the learner-facing evidence. This is contextual judgment, not a
+numeric score: never use file counts, line counts, fixed weights, or a hidden
+threshold to decide fit.
+
+- [outcome] **One observable outcome:** Name one user or downstream-system behavior that can be observed when the slice is complete.\n- [goals-concepts] **One goal and supporting concepts:** Choose one primary learning goal and no more than two supporting concepts.\n- [tasks] **Independently verifiable tasks:** Plan two to five dependency-ordered tasks that are independently understandable and verifiable; do not add filler to reach the range.\n- [evidence] **One completion evidence:** State one clear completion evidence that demonstrates the observable outcome rather than a vague sense of completion.\n- [budget] **Configured session budget:** Fit the complete practice and evidence plan, not only implementation, within the learner's configured session budget.\n- [platforms] **Framework and infrastructure load:** Identify whether the slice introduces multiple independent frameworks, infrastructure components, or business capabilities; split those into independently verifiable slices.\n- [unfamiliar-concepts] **Unfamiliar prerequisite concepts:** Identify multiple unfamiliar core concepts required before the first task and reduce or sequence them when they would overload this learner.\n- [whole-system-scope] **Whole-module or whole-system scope:** Reject wording such as completing an entire module or system when it cannot be narrowed to one independently observable behavior.\n- [learner-experience] **Learner experience:** Use the learner's recorded experience and goals to choose a meaningful slice; never infer personal experience or substitute a generic level.\n- [cognitive-load] **Cognitive load:** Consider the combined novelty, dependencies, ambiguity, and design effort for this learner instead of using file counts, line counts, or a numeric score.\n- [roadmap-impact] **Roadmap learning-path impact:** For a request outside the confirmed roadmap, report whether accepting it preserves, interrupts, replaces, or extends the active learning path before confirmation.
+
+A candidate is **fit** only when the evidence supports every applicable
+criterion. If any criterion is violated or the evidence is missing, classify it
+as **oversized or unresolved**, explain the context, and refine the slice before
+creating or selecting it.
+
+**Shared fit/oversized report**
+
+Use this exact report shape for a candidate:
+- **Classification:** `fit` or `oversized` (field: `classification`; never call a candidate fitting without the evidence)
+- **Context:** project goal, active milestone, learner experience/goals, session budget, and request source (field: `context`)
+- **Criterion evidence:** one concise observation for each shared criterion ID (field: `criterion-evidence`)
+- **Violated criteria:** the IDs that make the candidate oversized or unresolved, or `none` (field: `violated-criteria`)
+- **Completion evidence:** the one observable check that will prove the outcome (field: `completion-evidence`)
+- **Roadmap impact:** `preserve`, `interrupt`, `replace`, or `extend` the confirmed learning path (or `not-applicable` for an existing confirmed slice; field: `roadmap-impact`)
+- **Learner decision / next action:** confirm this slice, refine it, or choose a bounded alternative (field: `next-action`); never silently select or create an oversized candidate
+
+Do not replace this report with a numeric score, file-count rule, or generic
+fit label. The learner must be able to see which context or criterion changed
+if propose and next ever produce different classifications.
+
+For roadmap impact, the choices are preserve, interrupt, replace, or extend;
+use not-applicable only when the request is already a confirmed slice.
 
 1. **Resolve context before planning**: run
    `openspec humanspec context inspect --json` with the selected-root or
@@ -87,30 +131,37 @@ write application or test implementation code.
    budget. Ask the learner to confirm one observable outcome for a user or
    downstream system, one primary learning goal, up to two supporting concepts,
    and the evidence that will demonstrate completion. Treat learner-provided
-   answers as authoritative; do not infer personal facts from the project.
+   answers as authoritative; do not infer personal facts from the project. If
+   the request is not represented by the confirmed roadmap, do not reject it
+   solely for being new: report whether accepting it would **preserve**,
+   **interrupt**, **replace**, or **extend** the active learning path and ask
+   for that impact decision before confirmation.
 
-3. **Size the plan explicitly**: produce one outcome, one primary learning goal,
-   no more than two supporting concepts, and two to five independently
-   understandable and verifiable practice tasks in dependency order. Every task must fit the learner's configured session budget and name its completion evidence. The complete task set, not just the implementation task, must fit
-   that budget. Do not add filler tasks to satisfy the count; revise the slice
-   instead.
+3. **Size the plan explicitly with the shared contract**: evaluate every
+   criterion in the shared sizing block above and include its ID and evidence
+   in the fit/oversized report. A fit plan still has one outcome, one primary
+   learning goal, at most two supporting concepts, two to five independently
+   understandable and verifiable practice tasks in dependency order, one clear
+   completion evidence, and a complete task set that fits the configured budget.
+   Do not add filler tasks; revise the slice when any criterion is unresolved.
 
-4. **Split oversized requests before creating anything**: treat multiple independent outcomes, more than five tasks, a request over the
-   session budget, or a long architecture/design effort as too large. Explain the
-   reason and present a bounded set of candidate slices. Each candidate must
-   have one observable outcome, one primary learning focus, at most two
-   supporting concepts, and a two-to-five-task evidence plan that fits the
-   session budget. Candidates are conversation-only planning output: do not
-   create a change directory, update the roadmap, or run `openspec new change`
-   for them. Ask the learner to select at most one candidate, revise the request,
-   or stop; do not proceed until one slice is explicitly selected.
+4. **Split oversized requests before creating anything**: classify a request as
+   oversized or unresolved when any shared criterion is violated, including
+   multiple independent outcomes, multiple frameworks or infrastructure
+   components, multiple unfamiliar core concepts, whole-module/system wording,
+   missing single completion evidence, excessive cognitive load, or a plan over
+   the session budget. Show the violated criterion IDs and a bounded set of
+   smaller independently verifiable candidate slices. Candidates are conversation-only planning output: do not create a change directory or update the roadmap; do not run `openspec new change` for them. Present a bounded set of candidate slices; ask the learner to select at most one candidate, refine
+   the request, or stop; do not proceed
+   until one slice is explicitly selected.
 
 5. **Preview and confirm exactly one plan**: before any change command, show a
    preview containing the selected planning-home/root, resolved context paths,
-   change name, observable outcome, primary goal, supporting concepts, session
-   budget, task list with independent evidence, scope, and the behavior-delta
-   decision (delta specs or `skip_specs`). Ask for explicit learner
-   confirmation of this one plan. A rejection leaves change artifacts unchanged
+   change name, the shared fit/oversized report, observable outcome, primary
+   goal, supporting concepts, session budget, task list with independent
+   evidence, scope, roadmap impact, and the behavior-delta decision (delta
+   specs or `skip_specs`). Ask for explicit learner confirmation of this one
+   plan. A rejection leaves change artifacts unchanged
    and allows revision, another candidate, or stopping. Never infer consent and
    never create more than one change from a single propose conversation.
 
@@ -159,10 +210,11 @@ write application or test implementation code.
 **Output**
 
 Report the selected planning home, resolved project-document paths and their
-readiness, the single confirmed change name, its observable outcome, primary
-learning goal, supporting concepts, session budget, task count, completion
-evidence, and the planning artifacts written. State whether the change uses
-behavioral delta specs or the explicit `skip_specs` path. If the plan was
+readiness, the single confirmed change name, its shared fit/oversized report,
+roadmap impact, observable outcome, primary learning goal, supporting concepts,
+session budget, task count, completion evidence, and the planning artifacts
+written. State whether the change uses behavioral delta specs or the explicit
+`skip_specs` path. If the plan was
 rejected, oversized, blocked, or awaiting before-practice reflection, report
 that state and the learner's concrete next action; do not claim a change was
 created or ready when it was not.

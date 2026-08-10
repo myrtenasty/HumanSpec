@@ -15,6 +15,7 @@ import {
 import {
   HUMANSPEC_IMPLEMENTATION_BOUNDARY,
   HUMANSPEC_PROJECT_DOCS,
+  HUMANSPEC_VERIFY_REPORT_GUIDANCE,
 } from '../../../src/core/templates/workflows/humanspec-shared.js';
 import {
   LEARNING_FEEDBACK_END_MARKER,
@@ -144,6 +145,7 @@ describe('HumanSpec verify workflow templates', () => {
     for (const [label, body] of bodies) {
       expect(body, label).toContain(HUMANSPEC_IMPLEMENTATION_BOUNDARY);
       expect(body, label).toContain(HUMANSPEC_PROJECT_DOCS);
+      expect(body, label).toContain(HUMANSPEC_VERIFY_REPORT_GUIDANCE);
       expect(body, label).toContain(
         'Write boundary: this workflow writes review output and the reserved AI verification area of learning.md only'
       );
@@ -230,7 +232,10 @@ describe('HumanSpec verify workflow templates', () => {
         '`pass`, `fail`, or `inconclusive`',
         'A file existing',
         'cannot be reproduced',
-        'Report blocking findings separately from suggestions',
+        'Report the three independent categories',
+        '**blockers**',
+        '**suggestions**',
+        '**follow-up learning**',
         'one bounded **learner next step**',
         'Do not substitute one global next action',
       ]) {
@@ -238,6 +243,8 @@ describe('HumanSpec verify workflow templates', () => {
       }
       expect(text, label).toContain('a passing test does not prove that the learner completed the practice');
       expect(text, label).toContain('required item is software-passing only when its evidence is reproducible');
+      expect(text, label).toContain('follow-up learning is allowed to be empty');
+      expect(text, label).toContain('do not invent a topic');
     }
   });
 
@@ -314,6 +321,21 @@ describe('HumanSpec verify workflow templates', () => {
       ]) {
         expect(text, `${label}: ${marker}`).toContain(marker);
       }
+    }
+  });
+
+  it('refuses complete copy-ready failure solutions and allows only bounded examples', () => {
+    for (const [label, body] of bodies) {
+      const text = normalized(body);
+      expect(text, label).toContain('No complete solution in failure feedback');
+      expect(text, label).toContain('complete copy-ready implementation');
+      expect(text, label).toContain('copy-ready fixes');
+      expect(text, label).toContain('complete patches');
+      expect(text, label).toContain('test suites');
+      expect(text, label).toContain('end-to-end solutions');
+      expect(text, label).toContain('local example');
+      expect(text, label).toContain('incomplete and bounded');
+      expect(text, label).toContain('progressive coaching');
     }
   });
 

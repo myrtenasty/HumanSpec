@@ -45,6 +45,18 @@ within their declared write boundaries and with explicit learner confirmation;
 treat missing documents as "not yet initialized" rather than assuming their
 content.
 
+**HumanSpec responsibility and handoffs**
+
+- **init** creates or reviews the three project-context documents after the external bootstrap prerequisite is ready, then hands off to **next**.
+- **next** routes one deterministic next action from structured project, roadmap, learner, and change state; it does not perform the handoff automatically.
+- **propose** turns one learner-confirmed slice into planning artifacts and gates the before-practice handoff.
+- **coach** assists the learner with evidence-first explanations and progressive hints while the learner writes implementation and test code.
+- **verify** assesses software and learning evidence, records the latest bounded verification result, and hands off a passing result to **archive**.
+- **archive** synchronizes the confirmed change and reconciles explicitly confirmed roadmap and learner feedback, then hands back to **next**.
+
+Each handoff is a learner-facing recommendation with one next action; no
+workflow claims responsibility owned by a sibling workflow.
+
 **Human implementation ownership**
 
 The human learner writes all application code and all test implementation code.

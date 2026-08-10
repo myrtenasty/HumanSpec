@@ -9,8 +9,11 @@ import {
   getHumanspecNextSkillTemplate,
 } from '../../../src/core/templates/skill-templates.js';
 import {
+  HUMANSPEC_CHANGE_SIZING_GUIDANCE,
+  HUMANSPEC_FIT_REPORT_GUIDANCE,
   HUMANSPEC_IMPLEMENTATION_BOUNDARY,
   HUMANSPEC_PROJECT_DOCS,
+  HUMANSPEC_SIZING_CRITERIA,
 } from '../../../src/core/templates/workflows/humanspec-shared.js';
 import {
   generateSkillContent,
@@ -54,6 +57,11 @@ describe('HumanSpec next workflow templates', () => {
     for (const [label, body] of bodies) {
       expect(body, label).toContain(HUMANSPEC_IMPLEMENTATION_BOUNDARY);
       expect(body, label).toContain(HUMANSPEC_PROJECT_DOCS);
+      expect(body, label).toContain(HUMANSPEC_CHANGE_SIZING_GUIDANCE);
+      expect(body, label).toContain(HUMANSPEC_FIT_REPORT_GUIDANCE);
+      for (const criterion of HUMANSPEC_SIZING_CRITERIA) {
+        expect(body, `${label}: ${criterion.id}`).toContain(`[${criterion.id}]`);
+      }
       expect(body, label).toContain(
         'Write boundary: this workflow provides routing and bounded planning guidance'
       );
@@ -149,6 +157,9 @@ describe('HumanSpec next workflow templates', () => {
         expect(text, `${label}: normalized ${state}`).toContain(state);
       }
       expect(text, label).toContain('more than one candidate remains plausible');
+      expect(text, label).toContain('classification is `fit`');
+      expect(text, label).toContain('`oversized` or `unresolved`');
+      expect(text, label).toContain('learner-confirmed refinement or propose splitting');
       expect(text, label).toContain('no-confirmed-candidate');
       expect(text, label).toContain('intentionally has no confirmed candidate');
       expect(text, label).toContain('exactly one recommended next action');

@@ -47,6 +47,18 @@ within their declared write boundaries and with explicit learner confirmation;
 treat missing documents as "not yet initialized" rather than assuming their
 content.
 
+**HumanSpec responsibility and handoffs**
+
+- **init** creates or reviews the three project-context documents after the external bootstrap prerequisite is ready, then hands off to **next**.
+- **next** routes one deterministic next action from structured project, roadmap, learner, and change state; it does not perform the handoff automatically.
+- **propose** turns one learner-confirmed slice into planning artifacts and gates the before-practice handoff.
+- **coach** assists the learner with evidence-first explanations and progressive hints while the learner writes implementation and test code.
+- **verify** assesses software and learning evidence, records the latest bounded verification result, and hands off a passing result to **archive**.
+- **archive** synchronizes the confirmed change and reconciles explicitly confirmed roadmap and learner feedback, then hands back to **next**.
+
+Each handoff is a learner-facing recommendation with one next action; no
+workflow claims responsibility owned by a sibling workflow.
+
 **Human implementation ownership**
 
 The human learner writes all application code and all test implementation code.
@@ -64,6 +76,38 @@ task checkboxes, learner reflections, verification records, roadmap updates, or
 adaptive archive feedback.
 
 **Steps**
+
+**Shared HumanSpec change-sizing contract (v1)**
+
+Evaluate every candidate against every criterion below and retain the criterion
+ID with the learner-facing evidence. This is contextual judgment, not a
+numeric score: never use file counts, line counts, fixed weights, or a hidden
+threshold to decide fit.
+
+- [outcome] **One observable outcome:** Name one user or downstream-system behavior that can be observed when the slice is complete.\n- [goals-concepts] **One goal and supporting concepts:** Choose one primary learning goal and no more than two supporting concepts.\n- [tasks] **Independently verifiable tasks:** Plan two to five dependency-ordered tasks that are independently understandable and verifiable; do not add filler to reach the range.\n- [evidence] **One completion evidence:** State one clear completion evidence that demonstrates the observable outcome rather than a vague sense of completion.\n- [budget] **Configured session budget:** Fit the complete practice and evidence plan, not only implementation, within the learner's configured session budget.\n- [platforms] **Framework and infrastructure load:** Identify whether the slice introduces multiple independent frameworks, infrastructure components, or business capabilities; split those into independently verifiable slices.\n- [unfamiliar-concepts] **Unfamiliar prerequisite concepts:** Identify multiple unfamiliar core concepts required before the first task and reduce or sequence them when they would overload this learner.\n- [whole-system-scope] **Whole-module or whole-system scope:** Reject wording such as completing an entire module or system when it cannot be narrowed to one independently observable behavior.\n- [learner-experience] **Learner experience:** Use the learner's recorded experience and goals to choose a meaningful slice; never infer personal experience or substitute a generic level.\n- [cognitive-load] **Cognitive load:** Consider the combined novelty, dependencies, ambiguity, and design effort for this learner instead of using file counts, line counts, or a numeric score.\n- [roadmap-impact] **Roadmap learning-path impact:** For a request outside the confirmed roadmap, report whether accepting it preserves, interrupts, replaces, or extends the active learning path before confirmation.
+
+A candidate is **fit** only when the evidence supports every applicable
+criterion. If any criterion is violated or the evidence is missing, classify it
+as **oversized or unresolved**, explain the context, and refine the slice before
+creating or selecting it.
+
+**Shared fit/oversized report**
+
+Use this exact report shape for a candidate:
+- **Classification:** `fit` or `oversized` (field: `classification`; never call a candidate fitting without the evidence)
+- **Context:** project goal, active milestone, learner experience/goals, session budget, and request source (field: `context`)
+- **Criterion evidence:** one concise observation for each shared criterion ID (field: `criterion-evidence`)
+- **Violated criteria:** the IDs that make the candidate oversized or unresolved, or `none` (field: `violated-criteria`)
+- **Completion evidence:** the one observable check that will prove the outcome (field: `completion-evidence`)
+- **Roadmap impact:** `preserve`, `interrupt`, `replace`, or `extend` the confirmed learning path (or `not-applicable` for an existing confirmed slice; field: `roadmap-impact`)
+- **Learner decision / next action:** confirm this slice, refine it, or choose a bounded alternative (field: `next-action`); never silently select or create an oversized candidate
+
+Do not replace this report with a numeric score, file-count rule, or generic
+fit label. The learner must be able to see which context or criterion changed
+if propose and next ever produce different classifications.
+
+For roadmap impact, the choices are preserve, interrupt, replace, or extend;
+use not-applicable only when the request is already a confirmed slice.
 
 1. **Resolve the selected planning root and project context first**: follow the
    store-selection rules above, then run
@@ -134,15 +178,24 @@ adaptive archive feedback.
      a roadmap candidate or re-propose the archived change until reconciliation
      is complete.
    - For a `ready` result, use only its returned parseable candidate slices,
-     archived-change exclusion, and learner records. Name one fitting remaining
-     slice, explain its fit using the returned active milestone and durable
-     `mastered:`, `gap:`, and `review:` records, and hand off to
+     archived-change exclusion, and learner records. Evaluate each remaining
+     candidate against every criterion in the shared sizing block and render
+     the complete fit/oversized report with criterion IDs and evidence. Name
+     one remaining slice only when its classification is `fit`, explain its
+     fit using the returned active milestone and durable `mastered:`, `gap:`,
+     and `review:` records, and hand off the unchanged candidate identity to
      `/humanspec-propose`. If more than one candidate remains plausible,
-     present the bounded alternatives with their evidence and require the
+     present the bounded alternatives with their reports and require the
      learner to select one; never silently choose. Preserve propose's explicit
      confirmation gate: never run
      `openspec new change`, create a change directory, or create artifacts
      from this route without that confirmation.
+   - If any candidate is `oversized` or `unresolved` under the shared
+     contract, do not describe it as fitting or select it silently. Show the
+     violated criterion IDs and route to learner-confirmed refinement or propose
+     splitting into smaller slices. Do not create the oversized
+     candidate, update the roadmap, or choose a replacement without the
+     learner's explicit decision.
    - For an `empty` result with `no-confirmed-candidate`, report that the
      roadmap intentionally has no confirmed candidate after archive or learner
      rejection. Invite the learner to explore or explicitly propose a direction,
@@ -253,5 +306,7 @@ name the task or reflection section and the registered HumanSpec action
 (`/humanspec-init`, `/humanspec-propose`, `/humanspec-coach`,
 `/humanspec-verify`, or `/humanspec-archive`). For reconciliation,
 include the exact archived change and pending document; for a later candidate,
-include the archived-slice exclusion and the updated milestone/mastered/gap/
-review evidence used for the fit.
+include the shared fit/oversized report, archived-slice exclusion, and the
+updated milestone/mastered/gap/review evidence used for the fit. If a
+candidate is oversized or unresolved, include its violated criterion IDs and
+the learner-confirmed refinement or split action instead of selecting it.

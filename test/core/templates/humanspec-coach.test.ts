@@ -13,6 +13,7 @@ import {
   getSkillTemplates,
 } from '../../../src/core/shared/skill-generation.js';
 import {
+  HUMANSPEC_HINT_EVIDENCE_GUIDANCE,
   HUMANSPEC_IMPLEMENTATION_BOUNDARY,
   HUMANSPEC_PROJECT_DOCS,
 } from '../../../src/core/templates/workflows/humanspec-shared.js';
@@ -55,6 +56,7 @@ describe('HumanSpec coach workflow templates', () => {
     for (const [label, body] of bodies) {
       expect(body, label).toContain(HUMANSPEC_IMPLEMENTATION_BOUNDARY);
       expect(body, label).toContain(HUMANSPEC_PROJECT_DOCS);
+      expect(body, label).toContain(HUMANSPEC_HINT_EVIDENCE_GUIDANCE);
       expect(body, label).toContain('Write boundary: this workflow makes no implementation writes');
     }
   });
@@ -103,7 +105,12 @@ describe('HumanSpec coach workflow templates', () => {
       expect(levelOne, `${label}: level one`).toBeGreaterThan(-1);
       expect(levelTwo, `${label}: level two`).toBeGreaterThan(levelOne);
       expect(levelThree, `${label}: level three`).toBeGreaterThan(levelTwo);
-      expect(text, label).toContain('Every coaching response must label its level');
+      expect(text, label).toContain('Every substantive response must begin with exactly `Hint level: Level 1`');
+      expect(text, label).toContain('Hint level: Level 2');
+      expect(text, label).toContain('Hint level: Level 3');
+      expect(text, label).toContain('Requested hint level');
+      expect(text, label).toContain('Used hint level');
+      expect(text, label).toContain('record the level actually used');
       expect(text, label).toContain('escalate one level at a time only after the learner explicitly asks');
       expect(text, label).toContain('concept and checking questions');
       expect(text, label).toContain('modules, symbols, data flow');
@@ -139,6 +146,9 @@ describe('HumanSpec coach workflow templates', () => {
       const text = normalized(body);
       for (const boundary of [
         'This coach makes no file writes',
+        'If the learner asks the coach to record hint use',
+        'refuse the write',
+        'the learner must record the requested and used levels',
         'Do not edit application or test files',
         'learning reflections',
         'task checkboxes',
@@ -153,6 +163,24 @@ describe('HumanSpec coach workflow templates', () => {
       ]) {
         expect(text, `${label}: ${boundary}`).toContain(boundary);
       }
+    }
+  });
+
+  it('covers level-one, escalation, level-three, and complete-solution refusal responses', () => {
+    for (const [label, body] of bodies) {
+      const text = normalized(body);
+      const labels = [
+        'Hint level: Level 1',
+        'Hint level: Level 2',
+        'Hint level: Level 3',
+      ];
+      for (const hintLabel of labels) {
+        expect(text, `${label}: ${hintLabel}`).toContain(hintLabel);
+      }
+      expect(text, label).toContain('requested level separate from the level');
+      expect(text, label).toContain('actually used in your own stuck evidence');
+      expect(text, label).toContain('does not authorize implementation');
+      expect(text, label).toContain('never writes, edits, or claims that learner evidence');
     }
   });
 
