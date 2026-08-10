@@ -46,6 +46,7 @@ That second one matters more than it looks. OpenSpec has two halves: a command l
 | [How Commands Work](how-commands-work.md) | Where slash commands run, what "interactive mode" means, terminal vs chat |
 | [Core Concepts at a Glance](overview.md) | The whole mental model on one page: specs, changes, deltas, archive |
 | [Installation](installation.md) | npm, pnpm, yarn, bun, Nix, a prompt that hands setup to your AI assistant, and how to verify it worked |
+| [Deterministic QA](qa.md) | Portable smoke entrypoints, scenario selection, packed-install diagnostics, and manual/model boundaries |
 
 ### Use it day to day
 
@@ -60,6 +61,7 @@ That second one matters more than it looks. OpenSpec has two halves: a command l
 | [Editing & Iterating on a Change](editing-changes.md) | Update artifacts, go back, reconcile manual edits |
 | [Commands](commands.md) | Reference for every `/opsx:*` slash command |
 | [CLI](cli.md) | Reference for every `openspec` terminal command |
+| [Deterministic QA](qa.md) | Run isolated generic and packed HumanSpec smoke scenarios locally or in CI |
 
 ### Understand it deeply
 

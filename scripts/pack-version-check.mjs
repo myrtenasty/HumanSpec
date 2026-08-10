@@ -1,70 +1,36 @@
 #!/usr/bin/env node
-// Guard: Ensure the packed tarball's CLI `--version` matches package.json.
-//
-// Notes:
-// - We intentionally use `npm pack` (not pnpm) because `npm pack --json` is
-//   consistently supported and returns the tarball metadata we need. The
-//   project uses pnpm for install/publish, but this guard only needs to pack
-//   locally and verify the installed CLI output.
-// - `npm pack` triggers the package's `prepare` script (build), and
-//   `changeset publish` triggers `prepublishOnly` (also builds here). This
-//   means an explicit build is not strictly necessary for the guard.
+// Guard that the exact npm tarball exposes the package metadata, executable
+// mappings, registered schemas/workflow surfaces, and project-document assets.
 
-import { execFileSync, execSync } from 'child_process';
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs';
-import { tmpdir } from 'os';
-import path from 'path';
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 
-import { assertRequiredPackageAssets } from './package-content.mjs';
+import { assertPackageBinAssets, assertRequiredPackageAssets } from './package-content.mjs';
+import {
+  normalizeBinMappings,
+  parsePackResult,
+  resolveInstalledBinPaths,
+  resolveInstalledPackageRoot,
+  runNpmSync,
+  runExecutableSync,
+} from './qa/package.mjs';
 
-const npmCommand = 'npm';
-
-function log(msg) {
-  if (process.env.CI) return; // keep CI logs quiet by default
-  console.log(msg);
+function log(message) {
+  if (process.env.CI) return;
+  console.log(message);
 }
 
-function quoteForWindowsCmd(value) {
-  return `"${String(value).replace(/["^&|<>()]/g, '^$&').replace(/%/g, '%%')}"`;
+export function run(command, args = [], options = {}) {
+  return runExecutableSync(command, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], ...options });
 }
 
-function run(cmd, args, opts = {}) {
-  const options = { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'pipe'], ...opts };
-  // Node cannot directly execute a .cmd script reliably. Use one quoted
-  // command string on Windows rather than shell:true with a separate args
-  // array, which emits a Node deprecation warning.
-  if (process.platform === 'win32' && cmd === npmCommand) {
-    const command = [cmd, ...args.map(quoteForWindowsCmd)].join(' ');
-    return execSync(command, options);
-  }
-  return execFileSync(cmd, args, options);
+export function npmPack(options = {}) {
+  const output = runNpmSync(['pack', '--json', '--silent'], options);
+  return parsePackResult(output);
 }
 
-function npmPack() {
-  try {
-    const jsonOut = run(npmCommand, ['pack', '--json', '--silent']);
-    // npm runs this package's prepare script before producing the JSON. Keep
-    // the trailing JSON array rather than assuming stdout contains only JSON.
-    const json = jsonOut.match(/(\[\s*\{[\s\S]*\}\s*\])\s*$/u)?.[1] ?? jsonOut;
-    const arr = JSON.parse(json);
-    if (Array.isArray(arr) && arr.length > 0) {
-      const last = arr[arr.length - 1];
-      const file = (last && typeof last === 'object' && last.filename) || (typeof last === 'string' ? last : null);
-      if (file) return String(file).trim();
-    }
-    // Unexpected JSON shape or empty array; fallback to plain output
-    const out = run(npmCommand, ['pack', '--silent']).trim();
-    const lines = out.split(/\r?\n/);
-    return lines[lines.length - 1].trim();
-  } catch (e) {
-    // Fallback for environments not supporting --json
-    const out = run(npmCommand, ['pack', '--silent']).trim();
-    const lines = out.split(/\r?\n/);
-    return lines[lines.length - 1].trim();
-  }
-}
-
-function parseEnvelope(output, expectedOperation) {
+export function parseEnvelope(output, expectedOperation) {
   let envelope;
   try {
     envelope = JSON.parse(output);
@@ -77,7 +43,16 @@ function parseEnvelope(output, expectedOperation) {
   return envelope;
 }
 
-function assertPackedContextOperations(packageRoot, work) {
+function assertVersionOutput(packageName, expected, actual) {
+  if (actual !== expected) {
+    throw new Error(
+      `Packed ${packageName} CLI version mismatch: expected ${expected}, got ${actual}. ` +
+      'Ensure the dist is built and the CLI reads version from package.json.'
+    );
+  }
+}
+
+export function assertPackedContextOperations(packageRoot, work, binPath) {
   const projectRoot = path.join(work, 'packed-context-project');
   const openspecRoot = path.join(projectRoot, 'openspec');
   const templateRoot = path.join(packageRoot, 'dist', 'core', 'templates', 'project-docs');
@@ -90,15 +65,15 @@ function assertPackedContextOperations(packageRoot, work) {
     path.join(openspecRoot, 'changes', 'archive', '2026-01-01-packed-context-change', 'learning.md'),
     [
       '## AI 验证记录',
-      '- Learning-result assessment: learning complete',
-      '### Mastered topics',
-      '- Packed public context runtime',
+      '<!-- humanspec:learning-feedback:start version=1 -->',
+      '- learning-status: complete',
+      '- mastered: Packed public context runtime',
+      '<!-- humanspec:learning-feedback:end -->',
       '',
     ].join('\n')
   );
 
-  const packedCli = path.join(packageRoot, 'bin', 'openspec.js');
-  const invoke = (args) => run(process.execPath, [packedCli, ...args], { cwd: projectRoot });
+  const invoke = (args) => run(process.execPath, [binPath, ...args], { cwd: projectRoot });
   const inspect = parseEnvelope(invoke(['humanspec', 'context', 'inspect', '--json']), 'inspect');
   if (inspect.status !== 'ready' || inspect.data?.documents?.length !== 3) {
     throw new Error('Packed inspect did not expose the three registered templates.');
@@ -136,58 +111,63 @@ function assertPackedContextOperations(packageRoot, work) {
   }
 }
 
-function main() {
-  const pkg = JSON.parse(readFileSync(path.join(process.cwd(), 'package.json'), 'utf-8'));
-  const expected = pkg.version;
+export function readRepositoryManifest(repoRoot) {
+  return JSON.parse(readFileSync(path.join(repoRoot, 'package.json'), 'utf8'));
+}
 
+export function resolvePrimaryBin(binPaths, packageManifest) {
+  const mappings = normalizeBinMappings(packageManifest.bin);
+  const preferred = Object.prototype.hasOwnProperty.call(mappings, 'openspec') ? 'openspec' : Object.keys(mappings)[0];
+  if (!preferred || !binPaths[preferred]) throw new Error('Package metadata did not declare an executable bin mapping.');
+  return binPaths[preferred];
+}
+
+export function main({ repoRoot = process.cwd() } = {}) {
+  const repositoryManifest = readRepositoryManifest(repoRoot);
+  const expected = repositoryManifest.version;
+  const packageName = repositoryManifest.name;
   let work;
   let tgzPath;
 
   try {
-    log(`Packing @fission-ai/openspec@${expected}...`);
-    const filename = npmPack();
-    tgzPath = path.resolve(filename);
+    log(`Packing ${packageName}@${expected}...`);
+    const packed = npmPack({ cwd: repoRoot });
+    tgzPath = path.resolve(repoRoot, packed.filename);
     log(`Created: ${tgzPath}`);
 
-    work = mkdtempSync(path.join(tmpdir(), 'openspec-pack-check-'));
+    work = mkdtempSync(path.join(os.tmpdir(), 'openspec-pack-check-'));
     log(`Temp dir: ${work}`);
-
-    // Make a tiny project
     writeFileSync(
       path.join(work, 'package.json'),
       JSON.stringify({ name: 'pack-check', private: true }, null, 2)
     );
 
-    // Try to avoid noisy output and speed up
     const env = {
       ...process.env,
+      OPENSPEC_TELEMETRY: '0',
+      OPEN_SPEC_INTERACTIVE: '0',
       npm_config_loglevel: 'silent',
       npm_config_audit: 'false',
       npm_config_fund: 'false',
       npm_config_progress: 'false',
     };
+    runNpmSync(['install', tgzPath, '--silent', '--no-audit', '--no-fund', '--no-package-lock'], { cwd: work, env });
 
-    // Install the tarball
-    run(npmCommand, ['install', tgzPath, '--silent', '--no-audit', '--no-fund'], { cwd: work, env });
-
-    const packageRoot = path.join(work, 'node_modules', '@fission-ai', 'openspec');
-    assertRequiredPackageAssets(packageRoot);
-
-    // Run the installed CLI via Node to avoid bin resolution/platform issues
-    const binRel = path.join('node_modules', '@fission-ai', 'openspec', 'bin', 'openspec.js');
-    const actual = run(process.execPath, [binRel, '--version'], { cwd: work }).trim();
-
-    if (actual !== expected) {
-      throw new Error(
-        `Packed CLI version mismatch: expected ${expected}, got ${actual}. ` +
-          'Ensure the dist is built and the CLI reads version from package.json.'
-      );
+    const packageRoot = resolveInstalledPackageRoot(work, packageName);
+    const installedManifest = JSON.parse(readFileSync(path.join(packageRoot, 'package.json'), 'utf8'));
+    if (installedManifest.name !== packageName) {
+      throw new Error(`Installed package identity mismatch: expected ${packageName}, got ${String(installedManifest.name)}.`);
     }
+    assertRequiredPackageAssets(packageRoot);
+    assertPackageBinAssets(packageRoot, installedManifest);
+    const binPaths = resolveInstalledBinPaths(packageRoot, installedManifest);
+    const primaryBin = resolvePrimaryBin(binPaths, installedManifest);
+    const actual = run(process.execPath, [primaryBin, '--version'], { cwd: work }).trim();
+    assertVersionOutput(packageName, expected, actual);
 
-    assertPackedContextOperations(packageRoot, work);
-    log('Version and packed context operation checks passed.');
+    assertPackedContextOperations(packageRoot, work, primaryBin);
+    log('Version, metadata, asset, and packed context checks passed.');
   } finally {
-    // Always attempt cleanup
     if (work) {
       try { rmSync(work, { recursive: true, force: true }); } catch {}
     }
@@ -197,10 +177,12 @@ function main() {
   }
 }
 
-try {
-  main();
-  console.log('✅ pack-version-check: OK');
-} catch (err) {
-  console.error(`❌ pack-version-check: ${err.message}`);
-  process.exit(1);
+if (process.argv[1]?.endsWith('pack-version-check.mjs')) {
+  try {
+    main();
+    console.log('✅ pack-version-check: OK');
+  } catch (error) {
+    console.error(`❌ pack-version-check: ${error?.message ?? String(error)}`);
+    process.exit(1);
+  }
 }

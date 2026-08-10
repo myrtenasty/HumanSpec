@@ -42,10 +42,52 @@ jobs:
               - 'scripts/update-flake.sh'
               - '.github/workflows/ci.yml'
 
+  package_artifact:
+    name: Prepare packed QA artifact
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '20.19.0'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build project once for packed QA
+        run: pnpm run build
+
+      - name: Pack exact QA artifact
+        run: npm pack --json --silent --ignore-scripts > qa-pack.json
+
+      - name: Record packed artifact integrity
+        run: |
+          node -e "const fs=require('fs'); const p=JSON.parse(fs.readFileSync('qa-pack.json','utf8')).at(-1); if(!p?.filename||!p?.integrity) throw new Error('npm pack did not return filename/integrity'); fs.writeFileSync('qa-artifact.json', JSON.stringify({filename:p.filename, integrity:p.integrity, shasum:p.shasum}, null, 2)+'\\n')"
+
+      - name: Upload exact packed artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: openspec-qa-package-${{ github.sha }}
+          path: |
+            *.tgz
+            qa-artifact.json
+          retention-days: 7
+
   test_matrix:
     name: Test (${{ matrix.label }})
+    needs: [package_artifact]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
+    timeout-minutes: 30
     if: github.event_name == 'pull_request' || github.event_name == 'merge_group' || github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     strategy:
       fail-fast: false
@@ -94,10 +136,39 @@ jobs:
       - name: Build project
         run: pnpm run build
 
+      - name: Download exact packed QA artifact
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          name: openspec-qa-package-${{ github.sha }}
+          path: .qa-package
+
+      - name: Export packed artifact path
+        run: node -e "const fs=require('fs'); const path=require('path'); const file=fs.readdirSync('.qa-package').find((name)=>name.endsWith('.tgz')); if(!file) throw new Error('Downloaded QA tarball missing'); fs.appendFileSync(process.env.GITHUB_ENV, 'OPENSPEC_QA_TARBALL='+path.resolve('.qa-package',file)+require('os').EOL)"
+
       - name: Run tests
         env:
           VITEST_MAX_WORKERS: ${{ matrix.vitest_workers }}
         run: pnpm test
+
+      - name: Run package/version guard
+        run: pnpm check:pack-version
+
+      - name: Run Linux deterministic QA smoke
+        if: matrix.os == 'ubuntu-latest'
+        run: pnpm qa -- --artifact-dir .qa-artifacts
+
+      - name: Run Windows/macOS packed HumanSpec capstone
+        if: matrix.os != 'ubuntu-latest'
+        run: pnpm qa:smoke -- --tier capstone --artifact-dir .qa-artifacts
+
+      - name: Upload named QA diagnostics
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: qa-diagnostics-${{ matrix.label }}-${{ github.run_id }}
+          path: .qa-artifacts/
+          if-no-files-found: ignore
+          retention-days: 14
 
       - name: Verify HumanSpec coach template and paths on Windows
         if: matrix.os == 'windows-latest'

@@ -236,8 +236,13 @@ When writing proposals, keep the OpenSpec philosophy in mind: we serve a wide va
 - Install dependencies: `pnpm install`
 - Build: `pnpm run build`
 - Test: `pnpm test`
+- Deterministic QA smoke: `pnpm qa` or `pnpm qa:smoke -- --list`
+- Manual/model teaching review: `pnpm qa:manual` (see [`docs/humanspec-teaching-checklist.md`](docs/humanspec-teaching-checklist.md))
+- Pack/version guard: `pnpm check:pack-version`
 - Develop CLI locally: `pnpm run dev` or `pnpm run dev:cli`
 - Conventional commits (one-line): `type(scope): subject`
+
+The deterministic QA tier covers isolated generic CLI behavior and packed HumanSpec state transitions. It does not claim to evaluate model teaching quality; use the versioned manual checklist for oversized splitting, learner-level adaptation, progressive hints, no-full-patch behavior, learning evidence, and interruption review.
 
 ## Other
 

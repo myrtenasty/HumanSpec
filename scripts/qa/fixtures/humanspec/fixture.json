@@ -1,0 +1,7 @@
+{
+  "revision": "humanspec-qa-fixture-v1",
+  "changeName": "packed-humanspec-loop",
+  "candidateName": "packed-humanspec-next",
+  "rejectedCandidateName": "packed-humanspec-rejected",
+  "description": "Minimal packed-install fixture with canonical verify-shaped learning evidence."
+}

@@ -55,6 +55,9 @@
     "prepublishOnly": "pnpm run build",
     "postinstall": "node scripts/postinstall.js",
     "check:pack-version": "node scripts/pack-version-check.mjs",
+    "qa": "node scripts/qa/runner.mjs",
+    "qa:smoke": "node scripts/qa/runner.mjs --tier smoke",
+    "qa:manual": "node scripts/qa/manual.mjs",
     "release": "pnpm run release:ci",
     "release:ci": "pnpm run check:pack-version && pnpm exec changeset publish",
     "changeset": "changeset"
