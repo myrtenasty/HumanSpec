@@ -9,6 +9,12 @@ import {
   type ProjectDocId,
   type ProjectDocSectionDescriptor,
 } from './project-docs.js';
+import {
+  hasMeaningfulLearningFeedbackTopic,
+  normalizeLearningFeedbackTopic,
+  parseLearningFeedback,
+  type LearningFeedbackRecordKind,
+} from './learning-feedback.js';
 
 /** A structured issue that prevents the planner from guessing at a document. */
 export interface ProjectDocumentFeedbackIssue {
@@ -273,21 +279,12 @@ function countHeadings(lines: readonly string[], headings: readonly ProjectDocSe
 }
 
 function hasMeaningfulTopic(topic: string): boolean {
-  const value = topic.trim();
-  return value.length > 0 && !PLACEHOLDER_PATTERN.test(value) && !/^\[deferred:/iu.test(value);
+  return hasMeaningfulLearningFeedbackTopic(topic);
 }
 
 /** Normalizes only identity syntax; the original learner text is preserved in output. */
 export function normalizeFeedbackTopic(topic: string): string {
-  return topic
-    .normalize('NFKC')
-    .replace(/[`*_]/gu, '')
-    .replace(/\s+/gu, ' ')
-    .trim()
-    .replace(/[：:]+$/u, '')
-    .replace(/[.!?。！？]+$/u, '')
-    .trim()
-    .toLocaleLowerCase();
+  return normalizeLearningFeedbackTopic(topic);
 }
 
 function issue(
@@ -680,14 +677,56 @@ function explicitRecordsFromVerification(content: string): Partial<Record<Learne
   return result;
 }
 
-function assessmentFromVerificationRecord(content: string | undefined): string | undefined {
+interface ExplicitVerificationFeedback {
+  records: Partial<Record<LearnerFeedbackKind, string[]>>;
+  assessment?: string;
+  canonicalRegion: boolean;
+  issues: readonly string[];
+}
+
+/**
+ * Canonical regions are authoritative. Older typed headings/tags remain a
+ * conservative read-only fallback for archives written before version 1.
+ */
+function explicitFeedbackFromVerification(content: string): ExplicitVerificationFeedback {
+  const canonical = parseLearningFeedback(content);
+  if (canonical.region || canonical.issues.length > 0) {
+    const records: Partial<Record<LearnerFeedbackKind, string[]>> = {};
+    for (const record of canonical.feedback?.records ?? []) {
+      const kind = record.kind as LearningFeedbackRecordKind as LearnerFeedbackKind;
+      records[kind] ??= [];
+      records[kind]!.push(record.topic);
+    }
+    return {
+      records,
+      assessment: canonical.feedback?.status,
+      canonicalRegion: true,
+      issues: canonical.issues.map((item) => item.message),
+    };
+  }
+  return {
+    records: explicitRecordsFromVerification(content),
+    assessment: assessmentFromLegacyVerificationRecord(content),
+    canonicalRegion: false,
+    issues: [],
+  };
+}
+
+function assessmentFromLegacyVerificationRecord(content: string | undefined): string | undefined {
   if (!content) return undefined;
   const match = content.match(/(?:learning-result assessment|learning assessment)\s*:\s*([^\r\n]+)/iu);
   return match?.[1]?.trim();
 }
 
+function assessmentFromVerificationRecord(content: string | undefined): string | undefined {
+  if (!content) return undefined;
+  return explicitFeedbackFromVerification(content).assessment;
+}
+
 function assessmentIsLearningComplete(assessment: string | undefined): boolean {
   if (!assessment) return true;
+  if (assessment === 'complete') return true;
+  if (assessment === 'incomplete' || assessment === 'inconclusive') return false;
   return /learning\s+complete(?!\s*incomplete)/iu.test(assessment)
     && !/learning\s+incomplete/iu.test(assessment)
     && !/inconclusive/iu.test(assessment);
@@ -730,22 +769,32 @@ export function proposeLearnerFeedbackRecords(
   existingRecords: readonly LearnerFeedbackRecord[] = []
 ): LearnerFeedbackProposal {
   const evidence = asEvidence(evidenceInput);
-  const extracted = evidence.verificationRecord
-    ? explicitRecordsFromVerification(evidence.verificationRecord)
-    : {};
-  const assessment = evidence.learningAssessment
-    ?? evidence.learningResultAssessment
-    ?? assessmentFromVerificationRecord(evidence.verificationRecord);
+  const verification = evidence.verificationRecord
+    ? explicitFeedbackFromVerification(evidence.verificationRecord)
+    : undefined;
+  const extracted = verification?.records ?? {};
+  const assessment = verification?.canonicalRegion
+    ? verification.assessment
+    : evidence.learningAssessment
+      ?? evidence.learningResultAssessment
+      ?? verification?.assessment;
+  const sourceGaps = verification?.canonicalRegion
+    ? (extracted.gap ?? [])
+    : (evidence.gaps ?? []).concat(evidence.knowledgeGaps ?? [], extracted.gap ?? []);
+  const sourceReviews = verification?.canonicalRegion
+    ? (extracted.review ?? [])
+    : (evidence.review ?? []).concat(evidence.reviewItems ?? [], extracted.review ?? []);
+  const sourceMastered = verification?.canonicalRegion
+    ? (extracted.mastered ?? [])
+    : (evidence.mastered ?? []).concat(evidence.masteredTopics ?? [], extracted.mastered ?? []);
   const candidates: Array<{ kind: LearnerFeedbackKind; topic: string }> = [
-    ...((evidence.gaps ?? []).concat(evidence.knowledgeGaps ?? [], extracted.gap ?? [])).map((topic) => ({ kind: 'gap' as const, topic })),
-    ...((evidence.review ?? []).concat(evidence.reviewItems ?? [], extracted.review ?? [])).map((topic) => ({ kind: 'review' as const, topic })),
+    ...sourceGaps.map((topic) => ({ kind: 'gap' as const, topic })),
+    ...sourceReviews.map((topic) => ({ kind: 'review' as const, topic })),
   ];
   if (assessment !== undefined
     ? assessmentIsLearningComplete(assessment)
     : !evidence.verificationRecord) {
-    candidates.push(
-      ...((evidence.mastered ?? []).concat(evidence.masteredTopics ?? [], extracted.mastered ?? [])).map((topic) => ({ kind: 'mastered' as const, topic }))
-    );
+    candidates.push(...sourceMastered.map((topic) => ({ kind: 'mastered' as const, topic })));
   }
 
   const records: LearnerFeedbackRecord[] = [];
@@ -894,12 +943,27 @@ export async function planArchiveFeedback(input: ArchiveFeedbackPlanInput): Prom
     ...(input.learningEvidence ?? {}),
     ...(verificationRecords.length > 0 ? { verificationRecord: verificationRecords.join('\n') } : {}),
   };
+  const canonicalVerification = inputEvidence.verificationRecord
+    ? explicitFeedbackFromVerification(inputEvidence.verificationRecord)
+    : undefined;
+  if (canonicalVerification?.canonicalRegion
+    && canonicalVerification.assessment === undefined
+    && canonicalVerification.issues.length > 0) {
+    issues.push(issue(
+      'learner',
+      'malformed',
+      `Canonical archived learning feedback cannot be replayed: ${canonicalVerification.issues.join(' ')}`,
+      'AI 验证记录'
+    ));
+  }
   const analyses = context.analyses;
   const roadmap = analyses.roadmap;
   const learner = analyses.learner;
-  const planAssessment = inputEvidence.learningAssessment
-    ?? inputEvidence.learningResultAssessment
-    ?? assessmentFromVerificationRecord(inputEvidence.verificationRecord);
+  const planAssessment = canonicalVerification?.canonicalRegion
+    ? canonicalVerification.assessment
+    : inputEvidence.learningAssessment
+      ?? inputEvidence.learningResultAssessment
+      ?? assessmentFromVerificationRecord(inputEvidence.verificationRecord);
   const hasExplicitLearningEvidence = Object.keys(inputEvidence).length > 0;
   const defaultComplete = planAssessment !== undefined
     ? assessmentIsLearningComplete(planAssessment)

@@ -115,6 +115,61 @@ describe('HumanSpec project-document feedback registry and planner', () => {
     expect(rawIncomplete.records).toEqual([]);
   });
 
+  it('prefers canonical feedback, reads explicitly typed legacy evidence, and rejects narrative-only mastery', () => {
+    const canonical = [
+      '<!-- humanspec:learning-feedback:start version=1 -->',
+      '- learning-status: complete',
+      '- mastered: Canonical parser boundary',
+      '- gap: Canonical diagnostic gap',
+      '<!-- humanspec:learning-feedback:end -->',
+    ].join('\n');
+    const canonicalProposal = proposeLearnerFeedbackRecords({
+      learningAssessment: 'learning incomplete',
+      masteredTopics: ['Ignored direct evidence'],
+      verificationRecord: canonical,
+    });
+    expect(canonicalProposal.records.map((record) => `${record.kind}:${record.topic}`)).toEqual([
+      'gap:Canonical diagnostic gap',
+      'mastered:Canonical parser boundary',
+    ]);
+
+    const legacyProposal = proposeLearnerFeedbackRecords({
+      verificationRecord: [
+        '- Learning-result assessment: learning complete',
+        '### Mastered topics',
+        '- Explicit legacy mastery',
+        '- review: Explicit legacy review',
+      ].join('\n'),
+    });
+    expect(legacyProposal.records.map((record) => `${record.kind}:${record.topic}`)).toEqual([
+      'review:Explicit legacy review',
+      'mastered:Explicit legacy mastery',
+    ]);
+
+    const narrativeOnly = proposeLearnerFeedbackRecords({
+      verificationRecord: 'Overall disposition: pass\nThe learner described feeling confident about parser boundaries.',
+    });
+    expect(narrativeOnly.records).toEqual([]);
+  });
+
+  it('fails closed for malformed canonical feedback rather than falling back to a narrative mastery claim', async () => {
+    const { root } = await projectFixture();
+    const plan = await planArchiveFeedback({
+      projectRoot: root,
+      changeName: 'malformed-canonical-evidence',
+      archivedLearningContent: [
+        '## AI 验证记录',
+        '<!-- humanspec:learning-feedback:start version=1 -->',
+        '- learning-status: complete',
+        '- mastered: Must not be recovered',
+      ].join('\n'),
+    });
+
+    expect(plan.status).toBe('blocked');
+    expect(plan.issues.some((item) => item.code === 'malformed')).toBe(true);
+    expect(plan.learnerRecords).toEqual([]);
+  });
+
   it('models forced incomplete feedback, rejected previews, and later next routing', async () => {
     const { root, paths } = await projectFixture();
     const beforeRoadmap = await fs.readFile(paths.roadmap, 'utf8');
@@ -213,12 +268,39 @@ describe('HumanSpec project-document feedback registry and planner', () => {
     await fs.mkdir(archivedDir, { recursive: true });
     await fs.writeFile(
       path.join(archivedDir, 'learning.md'),
-      '## AI 验证记录\n- Learning-result assessment: learning complete\n### Mastered topics\n- Archived evidence\n',
+      [
+        '## 本次学习契约',
+        '- **主要学习目标：** Recover archived verification feedback',
+        '',
+        '## 开始前',
+        'I can explain the original parser boundary.',
+        '',
+        '## 实践任务',
+        '- [x] 1. Verify the bounded feedback region',
+        '',
+        '## 卡住时的记录',
+        '- no stuck episode: not applicable for this focused verification',
+        '',
+        '## 完成后',
+        'I can reimplement the parser without looking at the prior change.',
+        '',
+        '## AI 验证记录',
+        '<!-- humanspec:learning-feedback:start version=1 -->',
+        '- learning-status: complete',
+        '- mastered: Archived evidence',
+        '- gap: Archived follow-up gap',
+        '- review: Archived review item',
+        '<!-- humanspec:learning-feedback:end -->',
+        '',
+      ].join('\n'),
       'utf8'
     );
     await fs.writeFile(
       paths.learner,
-      (await fs.readFile(paths.learner, 'utf8')).replace('- [ ] mastered: Atomic feedback\n', ''),
+      (await fs.readFile(paths.learner, 'utf8'))
+        .replace('- [ ] mastered: Atomic feedback\n', '')
+        .replace('- [ ] gap: Archived follow-up gap\n', '')
+        .replace('- [ ] review: Archived review item\n', ''),
       'utf8'
     );
     const fromArchivedEvidence = await reconcileArchiveFeedback({
@@ -227,10 +309,21 @@ describe('HumanSpec project-document feedback registry and planner', () => {
       archivedPath: archivedDir,
     });
     expect(fromArchivedEvidence.status).toBe('complete');
-    expect(await fs.readFile(paths.learner, 'utf8')).toContain('- [ ] mastered: Archived evidence');
+    const reconciledLearner = await fs.readFile(paths.learner, 'utf8');
+    expect(reconciledLearner).toContain('- [ ] mastered: Archived evidence');
+    expect(reconciledLearner).toContain('- [ ] gap: Archived follow-up gap');
+    expect(reconciledLearner).toContain('- [ ] review: Archived review item');
 
-    const already = await reconcileArchiveFeedback({ projectRoot: root, changeName: 'interrupted-change' });
+    const already = await reconcileArchiveFeedback({
+      projectRoot: root,
+      changeName: 'interrupted-change',
+      archivedPath: archivedDir,
+    });
     expect(already.status).toBe('already-applied');
+    const repeatedLearner = await fs.readFile(paths.learner, 'utf8');
+    expect(repeatedLearner.match(/mastered: Archived evidence/g)).toHaveLength(1);
+    expect(repeatedLearner.match(/gap: Archived follow-up gap/g)).toHaveLength(1);
+    expect(repeatedLearner.match(/review: Archived review item/g)).toHaveLength(1);
   });
 
   it('fails closed and validates every bound document before the first write', async () => {

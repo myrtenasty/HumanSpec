@@ -111,18 +111,28 @@ const STEPS = `**Steps**
    work. Leave the learner-owned sections and task checkboxes byte-for-byte
    unchanged.
 
-4. **Map the contract to reproducible evidence**
+4. **Map observable, scope, and constraint contracts to reproducible evidence**
 
-   Review the selected proposal's observable outcome and completion evidence,
-   every applicable delta-spec requirement and scenario (or the explicit
+   Read the selected proposal's observable outcome, completion evidence,
+   included scope, explicitly excluded scope, and constraints. Record each
+   source as a concrete reference, such as
+   \`proposal.md: ## Included Scope, bullet 2\` or
+   \`proposal.md: ## Constraints, bullet 1\`. Then review every applicable
+   delta-spec requirement and scenario (or the explicit
    no-behavior-delta/\`skip_specs\` declaration), the learner's implementation
    evidence, and each relevant project check declared by the project or
-   change. For every assessed item, use a table with the expected outcome,
-   evidence observed, reproduction or review step, remaining gap, and exactly
-   one disposition: \`pass\`, \`fail\`, or \`inconclusive\`.
+   change.
 
-   - **Proposal outcome:** compare the claimed user or downstream outcome with
-     the implementation and a reproducible demonstration.
+   For every assessed item, use a table with the contract reference, expected
+   outcome, evidence observed, reproduction or review step, remaining gap, and
+   exactly one disposition: \`pass\`, \`fail\`, or \`inconclusive\`.
+
+   - **Proposal outcome and included scope:** compare every promised outcome
+     and in-scope item with a reproducible implementation demonstration.
+   - **Excluded scope and constraints:** confirm the implementation has not
+     introduced excluded behavior, dependencies, or design, and establish each
+     relevant constraint with concrete evidence. Missing inspection access or
+     an unavailable required check is an evidence gap, not a pass.
    - **Delta requirements and scenarios:** assess each applicable requirement
      and each WHEN/THEN scenario, including changed, added, removed, or
      renamed behavior. A skipped behavior delta is not permission to invent
@@ -131,39 +141,41 @@ const STEPS = `**Steps**
      implementation and run only checks the learner approves. A file existing,
      a task checkbox being checked, or a plausible description alone is never
      sufficient evidence.
-   - **Project checks:** read the declared test, lint, build, or other relevant
-     checks. Run available checks when approved; ask the learner to run an
-     unavailable or environment-specific check. Mark it \`inconclusive\` until
-     the missing reproduction or confirmation is supplied rather than turning
-     an unavailable check into a pass.
+   - **Project checks:** run available declared checks when approved; ask the
+     learner to run an unavailable or environment-specific check. Mark it
+     \`inconclusive\` until the missing reproduction or confirmation is supplied.
 
    A required item is software-passing only when its evidence is reproducible
    and sufficient. Keep software evidence separate from learning evidence: a
    passing test does not prove that the learner completed the practice.
 
-5. **Assign dispositions and route the result**
+5. **Assign independent software and learning dispositions**
 
-   Report findings in three groups:
+   The overall verification disposition is \`pass\`, \`fail\`, or
+   \`inconclusive\`; the learning status is separately \`complete\`,
+   \`incomplete\`, or \`inconclusive\`. A software pass does not make learning
+   complete. Set learning status to \`complete\` only when every required
+   learner-evidence gate is complete; use \`incomplete\` for known missing or
+   failed learning evidence and \`inconclusive\` when that evidence cannot be
+   established.
 
-   - **Blocking findings:** context blockers, unchecked tasks, missing or
-     template-only reflections, incomplete stuck episodes, failed required
-     requirements, or required evidence/checks that remain inconclusive.
-   - **Non-blocking suggestions:** useful hardening, follow-up tests, or
-     optional explanations that do not invalidate the selected contract.
-   - **Learner-owned next action:** one concrete action that closes the most
-     important gap, such as recording a missing reflection, reproducing a
-     check, or correcting the implementation. Do not perform that action for
-     the learner.
+   Report blocking findings separately from suggestions. Every blocker must
+   contain all four fields: **contract reference**, **observed evidence**,
+   **consequence**, and one bounded **learner next step**. For example, an
+   excluded-scope violation cites the proposal statement and changed dependency,
+   explains why it blocks verification, and asks the learner to remove or
+   justify that one dependency. Do not substitute one global next action for
+   per-blocker evidence.
 
    The overall disposition is \`pass\` only when the context is ready, every
    practice task and required learner reflection passes, every recorded stuck
    episode is complete, all required software evidence passes, and relevant
    checks are sufficient. Otherwise report \`fail\` for a demonstrated
-   violation or \`inconclusive\` when evidence cannot be reproduced, and name
-   the exact missing evidence. A failed or inconclusive task-specific review
-   directs the learner to /humanspec:coach; a passing review recommends
-   /humanspec:archive. Do not execute archive, sync specifications, update the
-   roadmap, or update learner history.
+   violation or \`inconclusive\` when evidence cannot be reproduced. A failed
+   or inconclusive task-specific review directs the learner to
+   /humanspec:coach; a passing review recommends /humanspec:archive. Do not
+   execute archive, sync specifications, update the roadmap, or update learner
+   history.
 
 6. **Update only the reserved AI verification section**
 
@@ -171,54 +183,35 @@ const STEPS = `**Steps**
    the selected learning.md. If the heading is missing or appears more than
    once, report a blocker and make no write; do not append a guessed section or
    merge ambiguous boundaries. When exactly one heading exists, preserve that
-   heading and replace only its body, from the end of that heading to the next
-   level-two heading or end of file. Preserve every byte outside that body.
+   heading and replace only its bounded version-1 feedback region. Preserve
+   every byte outside that region.
 
-   The replacement body must contain one latest-result record with this stable
-   shape (use the learner's language for evidence, but keep the dispositions
-   explicit):
+   Render one latest canonical feedback region with this stable shape:
 
    \`\`\`markdown
-   ### Latest result
-   - Selected change: <name>
-   - Overall disposition: pass | fail | inconclusive
-   - Learning-result assessment: learning complete | learning incomplete | learning evidence inconclusive
-   - Verified at: <timestamp>
-
-   ### Context reviewed
-   - Status/instruction context and concrete artifact paths:
-   - Registered project documents:
-
-   ### Gate dispositions
-   - Practice-task checklist:
-   - 开始前:
-   - 卡住时的记录:
-   - 完成后:
-
-   ### Contract evidence
-   - Proposal outcome:
-   - Delta requirements and scenarios:
-   - Implementation evidence:
-   - Relevant project checks:
-
-   ### Blocking findings
-   - <none or each blocker with evidence and severity>
-
-   ### Suggestions
-   - <none or each non-blocking suggestion>
-
-   ### Next learner action
-   - <one concrete action, or the archive recommendation after a pass>
+   <!-- humanspec:learning-feedback:start version=1 -->
+   - learning-status: complete | incomplete | inconclusive
+   - mastered: <evidence-supported topic>
+   - gap: <evidence-supported topic>
+   - review: <evidence-supported topic>
+   <!-- humanspec:learning-feedback:end -->
    \`\`\`
 
-   On a retry, replace the prior AI-owned body with the new single latest
-   result; do not append a second result or retain stale duplicate findings.
-   This write may touch only the named \`AI 验证记录\` body. It must preserve
-   application code, test implementation code, \`开始前\`,
+   Typed records may repeat. Emit no line for an empty category: never write
+   \`<none>\`, \`none\`, or another placeholder as a topic. Emit \`mastered\`
+   records only when \`learning-status: complete\`; failing or inconclusive
+   verification may still write supported \`gap\` and \`review\` records.
+   In the surrounding review output, retain the overall disposition, gate
+   table, source references, and each independently actionable blocker.
+
+   On a retry, replace the prior bounded feedback region with the new single
+   latest result; do not append a second result or retain stale duplicate
+   records. This write may touch only the named \`AI 验证记录\` region. It must
+   preserve application code, test implementation code, \`开始前\`,
    \`卡住时的记录\`, \`完成后\`, the learning contract, every practice-task
-   checkbox and description, and all other files. The workflow may report
-   review output in the response, but it may not write those learner-owned
-   areas.
+   checkbox and description, and all other files byte-for-byte. The workflow
+   may report review output in the response, but it may not write those
+   learner-owned areas.
 
    Keep the existing \`humanspec-verify\` workflow identity and \`humanspec\`
    namespace, use the existing internal \`openspec instructions apply\`
@@ -238,16 +231,19 @@ Use this response shape:
 - **Learning gate:** each task and the \`开始前\`, \`卡住时的记录\`, and
   \`完成后\` dispositions; identify template-only or missing evidence without
   editing it.
-- **Software evidence:** proposal outcome, each delta requirement/scenario,
-  implementation evidence, and relevant project checks, each marked pass,
-  fail, or inconclusive with reproduction details.
-- **Disposition:** overall pass, fail, or inconclusive; separate blockers from
-  suggestions and state one learner-owned next action.
-- **Verification record and ownership:** confirm that exactly one reserved
-  \`AI 验证记录\` body was replaced only when its heading was unambiguous, and
-  that application code, tests, reflections, and task checkboxes were
-  preserved. On failure or inconclusive evidence, point to /humanspec:coach;
-  on pass, recommend /humanspec:archive without running it.
+- **Software and contract evidence:** proposal outcome, included scope,
+  excluded scope, constraints, each delta requirement/scenario, implementation
+  evidence, and relevant project checks; cite each concrete source reference
+  and mark it pass, fail, or inconclusive with reproduction details.
+- **Disposition:** overall pass, fail, or inconclusive and the separate
+  learning status. For every blocker, include its contract reference, observed
+  evidence, consequence, and one bounded learner next step; suggestions remain
+  non-blocking.
+- **Verification record and ownership:** confirm that exactly one bounded
+  version-1 feedback region was replaced only when its heading was unambiguous,
+  and that application code, tests, reflections, and task checkboxes were
+  preserved byte-for-byte. On failure or inconclusive evidence, point to
+  /humanspec:coach; on pass, recommend /humanspec:archive without running it.
 
 If context is not ready, output the exact selection or repair blocker instead
 of task-specific findings or a verified result. Verification does not provide

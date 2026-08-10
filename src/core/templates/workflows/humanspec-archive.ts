@@ -59,15 +59,23 @@ const STEPS = `**Steps**
 
 2. **Apply the normal verification and learning gates**
 
-   Read the latest single verification result in the selected learning
-   artifact. A normal archive is ready only when its overall disposition is
-   \`pass\`, its learning-result assessment is \`learning complete\`, every
+   Read the latest bounded version-1 learning-feedback result in the selected
+   learning artifact. Its overall verification disposition and its
+   \`learning-status\` are separate: a normal archive is ready only when the
+   overall disposition is \`pass\` and \`learning-status: complete\`, every
    practice task is checked, \`## 开始前\` and \`## 完成后\` contain substantive
    learner-authored evidence, every recorded stuck episode has an attempted
    approach, observation, hypothesis, and requested hint, and every required
-   software check has sufficient reproducible evidence. Report each missing,
-   failed, or inconclusive item by its exact evidence and do not write positive
-   mastery, completed-slice, or adaptive records while a gate is incomplete.
+   software check has sufficient reproducible evidence.
+
+   Inspect each blocker as an independently actionable result: retain its
+   contract reference, observed evidence, consequence, and bounded learner
+   next step. Report every missing, failed, or inconclusive item by that
+   evidence. Do not write positive mastery, completed-slice, or adaptive
+   records while a gate is incomplete. Empty feedback categories add no
+   learner record, and only a complete learning status may replay mastered
+   records; supported gaps and review items remain useful for incomplete or
+   inconclusive results.
 
    A learner may explicitly choose a **forced archive** despite a reported
    gate failure. Show the exact gates being bypassed, ask for a separate,
@@ -133,8 +141,9 @@ const STEPS = `**Steps**
    \`\`\`
 
    Preserve selected-root or store flags. This public operation reconstructs
-   feedback from canonical archived evidence, reports already-applied records
-   without duplicates, and must never rerun specification synchronization, move
+   typed mastered, gap, and review records from canonical archived evidence,
+   reports already-applied records without duplicates, and must never re-infer
+   an outcome from narrative text, rerun specification synchronization, move
    the change a second time, or create a new planning artifact. Route
    \`humanspec-next\` to reconciliation while feedback remains pending.
 
@@ -156,14 +165,16 @@ Return a stable archive handoff report with:
   root, schema, \`changeRoot\`/archive path, concrete context files, and the
   three registered project-document paths and classifications;
 - **Gates:** task progress, reflection/stuck evidence, verification disposition,
-  software checks, and every bypass explicitly named for a forced archive;
+  separate learning status, scope/constraint blockers with their contract
+  reference/evidence/consequence/next step, software checks, and every bypass
+  explicitly named for a forced archive;
 - **Archive result:** canonical command/result, specification synchronization
   outcome, and final archive path, or the concrete failure with no feedback
   claim;
 - **Feedback preview/result:** exact roadmap slice and archived record,
-  learner gap/mastered/review records, duplicate/conflict decisions, preserved
-  content, LF/CRLF handling, and \`pending\` or \`complete\` reconciliation
-  state;
+  version-1 canonical gap/mastered/review records, empty-category and mastery
+  eligibility decisions, duplicate/conflict decisions, preserved content,
+  LF/CRLF handling, and \`pending\` or \`complete\` reconciliation state;
 - **Ownership boundary:** the human learner owns application code, test
   implementation, task checkboxes, and reflection text; archive may write only
   the canonical specification/archive result and explicitly confirmed

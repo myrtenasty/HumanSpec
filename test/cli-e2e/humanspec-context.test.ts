@@ -28,10 +28,29 @@ async function createArchivedEvidence(root: string, changeName: string): Promise
   await fs.writeFile(
     path.join(archive, 'learning.md'),
     [
+      '## 本次学习契约',
+      '- **主要学习目标：** Recover public context feedback',
+      '',
+      '## 开始前',
+      'I understand the context envelope before this practice.',
+      '',
+      '## 实践任务',
+      '- [x] 1. Recover canonical feedback through the public CLI',
+      '',
+      '## 卡住时的记录',
+      '- no stuck episode: not applicable',
+      '',
+      '## 完成后',
+      'I can reimplement this feedback recovery without the archived code.',
+      '',
       '## AI 验证记录',
-      '- Learning-result assessment: learning complete',
-      '### Mastered topics',
-      '- Public feedback runtime',
+      '<!-- humanspec:learning-feedback:start version=1 -->',
+      '- learning-status: complete',
+      '- mastered: Public feedback runtime',
+      '- gap: Public feedback follow-up',
+      '- review: Public feedback review',
+      '<!-- humanspec:learning-feedback:end -->',
+      '',
     ].join('\n'),
     'utf8'
   );
@@ -175,7 +194,10 @@ describe('humanspec context CLI', () => {
       data: { result: { writtenDocuments: expect.arrayContaining(['roadmap', 'learner']) } },
     });
     expect(await fs.readFile(roadmapPath, 'utf8')).toContain(`archived: ${changeName}`);
-    expect(await fs.readFile(learnerPath, 'utf8')).toContain('mastered: Public feedback runtime');
+    const learnerAfterApply = await fs.readFile(learnerPath, 'utf8');
+    expect(learnerAfterApply).toContain('mastered: Public feedback runtime');
+    expect(learnerAfterApply).toContain('gap: Public feedback follow-up');
+    expect(learnerAfterApply).toContain('review: Public feedback review');
 
     const reconciled = await runCLI(
       ['humanspec', 'context', 'feedback-reconcile', '--change', changeName, '--json'],
@@ -186,6 +208,67 @@ describe('humanspec context CLI', () => {
       operation: 'feedback-reconcile',
       status: 'already-applied',
     });
+  });
+
+  it('reconciles a packed canonical archive after an interrupted learner write with CRLF documents', async () => {
+    const root = await createHumanSpecProject();
+    const changeName = 'interrupted-packed-feedback';
+    await createArchivedEvidence(root, changeName);
+    const roadmapPath = path.join(root, 'openspec', 'roadmap.md');
+    const learnerPath = path.join(root, 'openspec', 'learner.md');
+    const archivedLearningPath = path.join(
+      root,
+      'openspec',
+      'changes',
+      'archive',
+      `2026-01-01-${changeName}`,
+      'learning.md'
+    );
+
+    for (const target of [roadmapPath, learnerPath, archivedLearningPath]) {
+      await fs.writeFile(target, (await fs.readFile(target, 'utf8')).replace(/\n/g, '\r\n'), 'utf8');
+    }
+    // This persisted marker represents an interruption after canonical archive
+    // but before the learner document was written.
+    await fs.appendFile(
+      roadmapPath,
+      `\r\n# 已归档切片\r\n\r\n- [x] archived: ${changeName} — complete (feedback: pending)\r\n`,
+      'utf8'
+    );
+
+    const reconciled = await runCLI(
+      ['humanspec', 'context', 'feedback-reconcile', '--change', changeName, '--json'],
+      { cwd: root }
+    );
+    expect(reconciled.exitCode, reconciled.stderr).toBe(0);
+    expect(JSON.parse(reconciled.stdout)).toMatchObject({
+      operation: 'feedback-reconcile',
+      status: 'complete',
+      data: { result: { archivedChange: changeName, feedbackState: 'complete' } },
+    });
+
+    const learner = await fs.readFile(learnerPath, 'utf8');
+    expect(learner).toContain('- [ ] mastered: Public feedback runtime');
+    expect(learner).toContain('- [ ] gap: Public feedback follow-up');
+    expect(learner).toContain('- [ ] review: Public feedback review');
+    expect(learner.replace(/\r\n/g, '')).not.toContain('\n');
+    const roadmap = await fs.readFile(roadmapPath, 'utf8');
+    expect(roadmap).toContain(`archived: ${changeName} — complete (feedback: complete)`);
+    expect(roadmap.replace(/\r\n/g, '')).not.toContain('\n');
+
+    const windowsArchivePath = path.win32.join(
+      'C:',
+      'workspace',
+      'openspec',
+      'changes',
+      'archive',
+      `2026-01-01-${changeName}`,
+      'learning.md'
+    );
+    expect(path.win32.basename(windowsArchivePath)).toBe('learning.md');
+    expect(path.win32.dirname(windowsArchivePath)).toBe(path.win32.join(
+      'C:', 'workspace', 'openspec', 'changes', 'archive', `2026-01-01-${changeName}`
+    ));
   });
 
   it('rejects malformed and stale plans before writing either document', async () => {

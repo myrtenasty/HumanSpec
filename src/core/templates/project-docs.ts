@@ -344,3 +344,4 @@ export function detectHumanSpecDocType(content: string): ProjectDocId | null {
 // while this facade keeps all project-document operations discoverable from the
 // original registry import path.
 export * from './project-doc-feedback.js';
+export * from './learning-feedback.js';

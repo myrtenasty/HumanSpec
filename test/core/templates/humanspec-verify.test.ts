@@ -17,7 +17,11 @@ import {
   HUMANSPEC_PROJECT_DOCS,
 } from '../../../src/core/templates/workflows/humanspec-shared.js';
 import {
+  LEARNING_FEEDBACK_END_MARKER,
+  LEARNING_FEEDBACK_START_MARKER,
+  LEARNING_FEEDBACK_VERSION,
   PROJECT_DOC_TEMPLATES,
+  replaceLearningFeedbackRegion,
   resolveProjectDocPath,
 } from '../../../src/core/templates/project-docs.js';
 import {
@@ -50,19 +54,21 @@ function hasLearnerEvidence(markdown: string, heading: string): boolean {
     .trim().length > 0;
 }
 
-/** A fixture-level model of the exact reserved-section replacement contract. */
-function replaceVerificationBody(markdown: string, record: string): string {
+/** A fixture-level model of the exact reserved-region replacement contract. */
+function replaceVerificationBody(
+  markdown: string,
+  feedback: Parameters<typeof replaceLearningFeedbackRegion>[1]
+): string {
   const heading = '## AI 验证记录';
   const occurrences = markdown.split('\n').filter((line) => line === heading).length;
   if (occurrences !== 1) {
     throw new Error('AI 验证记录 heading is missing or duplicated');
   }
-
-  const headingStart = markdown.indexOf(heading);
-  const bodyStart = headingStart + heading.length;
-  const nextHeading = markdown.indexOf('\n## ', bodyStart);
-  const suffix = nextHeading === -1 ? '' : markdown.slice(nextHeading);
-  return `${markdown.slice(0, bodyStart)}\n${record}${suffix}`;
+  const replaced = replaceLearningFeedbackRegion(markdown, feedback);
+  if (replaced.issues.some((item) => item.code === 'malformed-marker')) {
+    throw new Error('AI 验证记录 feedback region is missing or malformed');
+  }
+  return replaced.content;
 }
 
 const TEMPLATE_ONLY_LEARNING_ARTIFACT = [
@@ -84,7 +90,9 @@ const TEMPLATE_ONLY_LEARNING_ARTIFACT = [
   '',
   '## AI 验证记录',
   '',
-  '<!-- 仅供 AI 在人类完成实现后填写：验证步骤、观察结果、剩余风险。 -->',
+  LEARNING_FEEDBACK_START_MARKER,
+  '- learning-status: incomplete',
+  LEARNING_FEEDBACK_END_MARKER,
   '',
 ].join('\n');
 
@@ -110,7 +118,10 @@ const LEARNER_OWNED_LEARNING_ARTIFACT = [
   '',
   '## AI 验证记录',
   '',
-  'old verification result',
+  LEARNING_FEEDBACK_START_MARKER,
+  '- learning-status: incomplete',
+  '- gap: Previous verification gap',
+  LEARNING_FEEDBACK_END_MARKER,
   '',
 ].join('\n');
 
@@ -219,14 +230,61 @@ describe('HumanSpec verify workflow templates', () => {
         '`pass`, `fail`, or `inconclusive`',
         'A file existing',
         'cannot be reproduced',
-        'Blocking findings',
-        'Non-blocking suggestions',
-        'Learner-owned next action',
+        'Report blocking findings separately from suggestions',
+        'one bounded **learner next step**',
+        'Do not substitute one global next action',
       ]) {
         expect(text, `${label}: ${marker}`).toContain(marker);
       }
       expect(text, label).toContain('a passing test does not prove that the learner completed the practice');
       expect(text, label).toContain('required item is software-passing only when its evidence is reproducible');
+    }
+  });
+
+  it('requires included/excluded scope and constraints as evidence-backed gates', () => {
+    for (const [label, body] of bodies) {
+      const text = normalized(body);
+      for (const marker of [
+        'included scope',
+        'explicitly excluded scope',
+        'constraints',
+        'proposal.md: ## Included Scope, bullet 2',
+        'contract reference',
+        'Excluded scope and constraints',
+        'Missing inspection access or an unavailable required check is an evidence gap',
+        'observed evidence',
+        'consequence',
+        'bounded learner next step',
+        'Do not substitute one global next action for per-blocker evidence',
+      ]) {
+        expect(text, `${label}: ${marker}`).toContain(marker);
+      }
+    }
+  });
+
+  it('keeps overall disposition separate from learning status and supports incomplete feedback', () => {
+    for (const [label, body] of bodies) {
+      const text = normalized(body);
+      for (const marker of [
+        'overall verification disposition is `pass`, `fail`, or `inconclusive`',
+        'learning status is separately `complete`, `incomplete`, or `inconclusive`',
+        'A software pass does not make learning complete',
+        'only when every required learner-evidence gate is complete',
+        'failing or inconclusive verification may still write supported `gap` and `review` records',
+      ]) {
+        expect(text, `${label}: ${marker}`).toContain(marker);
+      }
+    }
+  });
+
+  it('describes incomplete, failed, inconclusive, multiple-blocker, unavailable-check, and clean-pass journeys', () => {
+    for (const [label, body] of bodies) {
+      const text = normalized(body);
+      expect(text, label).toContain('A software pass does not make learning complete');
+      expect(text, label).toContain('failing or inconclusive verification may still write supported `gap` and `review` records');
+      expect(text, label).toContain('Every blocker must contain all four fields');
+      expect(text, label).toContain('Mark it `inconclusive` until the missing reproduction or confirmation is supplied');
+      expect(text, label).toContain('overall disposition is `pass` only when the context is ready');
     }
   });
 
@@ -237,18 +295,16 @@ describe('HumanSpec verify workflow templates', () => {
         'count exact level-two headings named `## AI 验证记录`',
         'missing or appears more than once',
         'make no write',
-        'replace only its body',
-        'next level-two heading or end of file',
-        'one latest-result record',
-        '### Latest result',
-        'Overall disposition: pass | fail | inconclusive',
-        'Learning-result assessment:',
-        '### Gate dispositions',
-        '### Contract evidence',
-        '### Blocking findings',
-        '### Suggestions',
-        '### Next learner action',
-        'On a retry, replace the prior AI-owned body',
+        'replace only its bounded version-1 feedback region',
+        '<!-- humanspec:learning-feedback:start version=1 -->',
+        '- learning-status: complete | incomplete | inconclusive',
+        '- mastered: <evidence-supported topic>',
+        '- gap: <evidence-supported topic>',
+        '- review: <evidence-supported topic>',
+        'Typed records may repeat',
+        'Emit no line for an empty category',
+        'Emit `mastered` records only when `learning-status: complete`',
+        'On a retry, replace the prior bounded feedback region',
         'do not append a second result',
         'application code, test implementation code',
         'every practice-task checkbox and description',
@@ -284,37 +340,35 @@ describe('HumanSpec verify workflow templates', () => {
     expect(sectionBody(LEARNER_OWNED_LEARNING_ARTIFACT, '## 实践任务')).toContain('- [x] 1.');
   });
 
-  it('preserves learner-owned content across reserved-section retries', () => {
-    const firstRecord = [
-      '### Latest result',
-      '- Selected change: practice-slice',
-      '- Overall disposition: inconclusive',
-      '',
-      '### Blocking findings',
-      '- The build check needs learner reproduction.',
-    ].join('\n');
-    const secondRecord = [
-      '### Latest result',
-      '- Selected change: practice-slice',
-      '- Overall disposition: pass',
-      '',
-      '### Blocking findings',
-      '- none',
-    ].join('\n');
+  it('preserves learner-owned bytes and replaces only one canonical feedback region across retries', () => {
+    const applicationBytes = Buffer.from('export const untouched = true;\r\n', 'utf8');
+    const testBytes = Buffer.from('expect(untouched).toBe(true);\r\n', 'utf8');
+    const firstFeedback = {
+      version: LEARNING_FEEDBACK_VERSION,
+      status: 'inconclusive' as const,
+      records: [{ kind: 'gap' as const, topic: 'The build check needs learner reproduction.' }],
+    };
+    const secondFeedback = {
+      version: LEARNING_FEEDBACK_VERSION,
+      status: 'complete' as const,
+      records: [{ kind: 'mastered' as const, topic: 'Bounded verification replacement' }],
+    };
 
-    const afterFirst = replaceVerificationBody(LEARNER_OWNED_LEARNING_ARTIFACT, firstRecord);
-    const afterSecond = replaceVerificationBody(afterFirst, secondRecord);
+    const afterFirst = replaceVerificationBody(LEARNER_OWNED_LEARNING_ARTIFACT, firstFeedback);
+    const afterSecond = replaceVerificationBody(afterFirst, secondFeedback);
     const learnerOwnedBefore = LEARNER_OWNED_LEARNING_ARTIFACT
       .replace(/\n## AI 验证记录[\s\S]*$/u, '');
     const learnerOwnedAfter = afterSecond.replace(/\n## AI 验证记录[\s\S]*$/u, '');
 
     expect(learnerOwnedAfter).toBe(learnerOwnedBefore);
-    expect(afterSecond).toContain(secondRecord);
-    expect(afterSecond).not.toContain(firstRecord);
-    expect(afterSecond.match(/### Latest result/g)).toHaveLength(1);
+    expect(afterSecond).toContain('- mastered: Bounded verification replacement');
+    expect(afterSecond).not.toContain('The build check needs learner reproduction.');
+    expect(afterSecond.match(/humanspec:learning-feedback:start/g)).toHaveLength(1);
+    expect(applicationBytes).toEqual(Buffer.from('export const untouched = true;\r\n', 'utf8'));
+    expect(testBytes).toEqual(Buffer.from('expect(untouched).toBe(true);\r\n', 'utf8'));
     expect(() => replaceVerificationBody(
       `${LEARNER_OWNED_LEARNING_ARTIFACT}\n\n## AI 验证记录`,
-      secondRecord
+      secondFeedback
     )).toThrow(/missing or duplicated/);
   });
 

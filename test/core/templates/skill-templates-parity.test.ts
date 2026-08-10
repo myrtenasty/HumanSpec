@@ -84,10 +84,10 @@ const EXPECTED_FUNCTION_HASHES: Record<string, string> = {
   getHumanspecProposeCommandTemplate: '9078dba69e3c9a027154d48236df9db2b67be49bd79689e9a1d5ad95c48e11fc',
   getHumanspecCoachSkillTemplate: '6b28bc1e75834167d3dc55fb45eda53050916b07e3539f16533320f4a79c4749',
   getHumanspecCoachCommandTemplate: 'aba98ec8aac7740ef4d0ac5e6bb7ecd00f5e26054622e0b649b245928b123463',
-  getHumanspecVerifySkillTemplate: 'c875d8b01dd85d577cfc208e6477235a841282d9a90dffd5c77b4e5f72d31a30',
-  getHumanspecVerifyCommandTemplate: '83dbb4f0fddb41c803593f421bbb3cbc31dfd628223d6dd85d192abddaa96837',
-  getHumanspecArchiveSkillTemplate: '5a34f94b4ab059e6391c8aeca869fc1e525e40107fdf8bc3dcd0caf8ba2a064a',
-  getHumanspecArchiveCommandTemplate: '426bdafe64f017388d6163bda74ad9a12315f5888d34432e2904e8eef7f5e829',
+  getHumanspecVerifySkillTemplate: 'af9a42cc5cc3df4cd47953342f4dca6b76849118e15a72e02ff68c6f3f0580dd',
+  getHumanspecVerifyCommandTemplate: 'fd87c66711dd110a88a935510f72f92276c61941efe055a7aeb44658f379bf5a',
+  getHumanspecArchiveSkillTemplate: 'b9e681f2ba4b570f1eb789658400fda5c19a1a09b7a2c57f09e2aac9826c9320',
+  getHumanspecArchiveCommandTemplate: '44cd3abc9487afc518de10217c2173c1dedf43a8a1536d8503a3d34649367f99',
   getHumanspecExploreSkillTemplate: '14bef5375776f4ffadf43c9ab5db8826e9d7d133c1f5fec186b03d4f01d4be88',
   getHumanspecExploreCommandTemplate: 'd4586258e8945c0ee6c6038f76d1e0085ecb377048ec082ea04cbd5134ef44ec',
 };
@@ -109,8 +109,8 @@ const EXPECTED_GENERATED_SKILL_CONTENT_HASHES: Record<string, string> = {
   'humanspec-next': '0e47de4e7698bf4488bd890770af149129172e9cc42230799c37948c82e269f6',
   'humanspec-propose': '64b4705e93ca834beafc2373b074f165c4c7f0822edd3027512a96379133a1d9',
   'humanspec-coach': '5250d4524257c818299af9c857d59f502ce6ea191b8f9b20cdc7d0567e8c4ef1',
-  'humanspec-verify': '52feafed09b95454489b57a832cf4fd59e6cdc25abfde21d45457b15dea67c79',
-  'humanspec-archive': '32cfd7785b36cfd1a8afe31219e9a73341e148de0f1a13621ee54fea461dab52',
+  'humanspec-verify': '412cc78ce71cb6d1393cb7008410e7b04235a8ffe66a241177b311ba8fb5b8f8',
+  'humanspec-archive': '517c73f547325a5f84d01c329c097f2fd0f9793985b01c9712d8895e2b562baf',
   'humanspec-explore': '11ec81bd6eb7faf2e8f5950a6dd2d6695213a42b746588e0de55f18ce5c9d1c9',
 };
 

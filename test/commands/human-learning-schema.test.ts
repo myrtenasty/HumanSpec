@@ -182,6 +182,32 @@ describe('human-learning built-in schema', () => {
       expect(learning.template).toContain(`## ${heading}`);
     }
     expect(learning.template).toContain('- [ ] 1.');
+    const expectedHeadings = [
+      '本次学习契约',
+      '开始前',
+      '实践任务',
+      '卡住时的记录',
+      '完成后',
+      'AI 验证记录',
+    ];
+    expect(expectedHeadings.map((heading) => learning.template.indexOf(`## ${heading}`))).toEqual(
+      [...expectedHeadings.map((heading) => learning.template.indexOf(`## ${heading}`))].sort((left, right) => left - right)
+    );
+    for (const prompt of [
+      '本次明确不学习',
+      '本次打算从哪里开始',
+      '尝试方法、观察到的错误或行为、诊断过程、当前假设',
+      '请求的提示等级和实际使用的提示等级',
+      '本次没有卡住：不适用',
+      '还不确定什么',
+      '不看当前代码能否重新实现',
+      '下一次应该复习什么',
+      '<!-- humanspec:learning-feedback:start version=1 -->',
+      '<!-- humanspec:learning-feedback:end -->',
+      '所有其他章节均由学习者拥有',
+    ]) {
+      expect(learning.template).toContain(prompt);
+    }
 
     const learningPath = path.join(changeDir, 'learning.md');
     await fs.writeFile(
@@ -222,6 +248,31 @@ describe('human-learning built-in schema', () => {
     await expect(fs.access(path.join(changeDir, 'tasks.md'))).rejects.toMatchObject({
       code: 'ENOENT',
     });
+  });
+
+  it('preserves legacy learning artifact bytes while inspecting schema progress', async () => {
+    const changeName = 'legacy-learning-bytes';
+    const changeDir = await createLearningChange(changeName, { skipSpecs: true });
+    await fs.writeFile(path.join(changeDir, 'proposal.md'), '## Observable Outcome\r\n\r\nLegacy practice.\r\n', 'utf8');
+    const learningPath = path.join(changeDir, 'learning.md');
+    const legacy = Buffer.from([
+      '## 实践任务',
+      '',
+      '- [x] 1. Preserve existing learner reflection',
+      '',
+      '## AI 验证记录',
+      '- Learning-result assessment: learning complete',
+      '### Mastered topics',
+      '- Explicit legacy topic',
+      '',
+    ].join('\r\n'), 'utf8');
+    await fs.writeFile(learningPath, legacy);
+
+    const result = await runCLI(['instructions', 'apply', '--change', changeName, '--json'], { cwd: projectRoot });
+    expect(result.exitCode, result.stderr).toBe(0);
+    expect(await fs.readFile(learningPath)).toEqual(legacy);
+    const windowsLearningPath = path.win32.join('C:', 'workspace', 'practice', 'learning.md');
+    expect(path.win32.basename(windowsLearningPath)).toBe('learning.md');
   });
 
   it('keeps the internal apply protocol available in a humanspec-profile project (no public apply)', async () => {
