@@ -112,7 +112,11 @@ describe('humanspec context CLI', () => {
 
     const empty = await runCLI(['humanspec', 'context', 'next', '--json'], { cwd: root });
     expect(empty.exitCode, empty.stderr).toBe(0);
-    expect(JSON.parse(empty.stdout)).toMatchObject({ operation: 'next', status: 'empty' });
+    expect(JSON.parse(empty.stdout)).toMatchObject({
+      operation: 'next',
+      status: 'empty',
+      data: { activeMilestone: { identity: '1', status: 'active' }, emptyReason: 'no-confirmed-candidate' },
+    });
 
     const roadmap = await fs.readFile(roadmapPath, 'utf8');
     await fs.writeFile(
@@ -128,7 +132,10 @@ describe('humanspec context CLI', () => {
     expect(JSON.parse(ready.stdout)).toMatchObject({
       operation: 'next',
       status: 'ready',
-      data: { candidates: [{ changeName: 'next-context-change' }] },
+      data: {
+        activeMilestone: { identity: '1', status: 'active' },
+        candidates: [{ changeName: 'next-context-change' }],
+      },
     });
 
     await fs.appendFile(
@@ -210,6 +217,110 @@ describe('humanspec context CLI', () => {
     });
   });
 
+  it('applies a learner-rejected adaptive candidate through the public CLI and reports an intentional empty route', async () => {
+    const root = await createHumanSpecProject();
+    const changeName = 'rejected-adaptive-feedback';
+    await createArchivedEvidence(root, changeName);
+    const roadmapPath = path.join(root, 'openspec', 'roadmap.md');
+    const adaptive = JSON.stringify({
+      milestone: { identity: '1', status: 'completed' },
+      candidate: { changeName: 'rejected-public-next', learningFocus: 'Practice public adaptive feedback' },
+      evidenceReferences: ['mastered: Public feedback runtime'],
+    });
+    const preview = await runCLI(
+      ['humanspec', 'context', 'feedback-plan', '--change', changeName, '--adaptive', adaptive, '--json'],
+      { cwd: root }
+    );
+    expect(preview.exitCode, preview.stderr).toBe(0);
+    const previewEnvelope = JSON.parse(preview.stdout);
+    expect(previewEnvelope.data.plan).toMatchObject({
+      milestoneTransition: { identity: '1', proposedStatus: 'completed' },
+      candidate: { changeName: 'rejected-public-next' },
+      candidateStatus: 'confirmed',
+    });
+    const applied = await runCLI(
+      ['humanspec', 'context', 'feedback-apply', '--plan', '-', '--yes', '--reject-candidate', '--json'],
+      { cwd: root, input: preview.stdout }
+    );
+    expect(applied.exitCode, applied.stderr).toBe(0);
+    expect(JSON.parse(applied.stdout)).toMatchObject({
+      operation: 'feedback-apply',
+      status: 'complete',
+      data: { result: { candidateStatus: 'rejected' } },
+    });
+    const roadmap = await fs.readFile(roadmapPath, 'utf8');
+    expect(roadmap).toContain('- status: completed');
+    expect(roadmap).not.toContain('slice: rejected-public-next');
+    expect(await fs.stat(path.join(root, 'openspec', 'changes', 'rejected-public-next')).catch(() => null)).toBeNull();
+    const next = await runCLI(['humanspec', 'context', 'next', '--json'], { cwd: root });
+    expect(next.exitCode, next.stderr).toBe(0);
+    expect(JSON.parse(next.stdout)).toMatchObject({
+      operation: 'next',
+      status: 'empty',
+      data: { emptyReason: 'no-confirmed-candidate' },
+    });
+  });
+
+  it('blocks ambiguous milestones and keeps duplicate adaptive reruns idempotent through the public CLI', async () => {
+    const ambiguousRoot = await createHumanSpecProject();
+    const ambiguousChange = 'ambiguous-adaptive-feedback';
+    await createArchivedEvidence(ambiguousRoot, ambiguousChange);
+    const ambiguousRoadmapPath = path.join(ambiguousRoot, 'openspec', 'roadmap.md');
+    await fs.appendFile(ambiguousRoadmapPath, '\n## 里程碑 2\n\n- status: active\n- 预期成果：\n', 'utf8');
+    const ambiguous = await runCLI(
+      ['humanspec', 'context', 'feedback-plan', '--change', ambiguousChange, '--json'],
+      { cwd: ambiguousRoot }
+    );
+    expect(ambiguous.exitCode).not.toBe(0);
+    expect(JSON.parse(ambiguous.stdout)).toMatchObject({ operation: 'feedback-plan', status: 'blocked' });
+
+    const duplicateCandidateRoot = await createHumanSpecProject();
+    const duplicateCandidateChange = 'ambiguous-candidate-feedback';
+    await createArchivedEvidence(duplicateCandidateRoot, duplicateCandidateChange);
+    const duplicateCandidateRoadmapPath = path.join(duplicateCandidateRoot, 'openspec', 'roadmap.md');
+    const duplicateCandidateRoadmap = await fs.readFile(duplicateCandidateRoadmapPath, 'utf8');
+    await fs.writeFile(
+      duplicateCandidateRoadmapPath,
+      duplicateCandidateRoadmap.replace(
+        '\n- [ ] slice: <change-name> — <学习重点>\n- [ ] slice: <change-name> — <学习重点>',
+        '\n- [ ] slice: repeated-candidate — same focus\n- [ ] slice: repeated-candidate — same focus'
+      ),
+      'utf8'
+    );
+    const ambiguousCandidate = await runCLI(
+      ['humanspec', 'context', 'feedback-plan', '--change', duplicateCandidateChange, '--json'],
+      { cwd: duplicateCandidateRoot }
+    );
+    expect(ambiguousCandidate.exitCode).not.toBe(0);
+    expect(JSON.parse(ambiguousCandidate.stdout)).toMatchObject({ operation: 'feedback-plan', status: 'blocked' });
+
+    const root = await createHumanSpecProject();
+    const changeName = 'duplicate-adaptive-feedback';
+    await createArchivedEvidence(root, changeName);
+    const adaptive = JSON.stringify({
+      milestone: { identity: '1', status: 'completed' },
+      candidate: { changeName: 'duplicate-public-next', learningFocus: 'Replay public feedback exactly once' },
+    });
+    const preview = await runCLI(
+      ['humanspec', 'context', 'feedback-plan', '--change', changeName, '--adaptive', adaptive, '--json'],
+      { cwd: root }
+    );
+    expect(preview.exitCode, preview.stderr).toBe(0);
+    const applied = await runCLI(
+      ['humanspec', 'context', 'feedback-apply', '--plan', '-', '--yes', '--json'],
+      { cwd: root, input: preview.stdout }
+    );
+    expect(applied.exitCode, applied.stderr).toBe(0);
+    const replay = await runCLI(
+      ['humanspec', 'context', 'feedback-plan', '--change', changeName, '--adaptive', adaptive, '--json'],
+      { cwd: root }
+    );
+    expect(replay.exitCode, replay.stderr).toBe(0);
+    expect(JSON.parse(replay.stdout)).toMatchObject({ operation: 'feedback-plan', status: 'already-applied' });
+    const replayRoadmap = await fs.readFile(path.join(root, 'openspec', 'roadmap.md'), 'utf8');
+    expect(replayRoadmap.match(/slice: duplicate-public-next/g)?.length).toBe(1);
+  });
+
   it('reconciles a packed canonical archive after an interrupted learner write with CRLF documents', async () => {
     const root = await createHumanSpecProject();
     const changeName = 'interrupted-packed-feedback';
@@ -228,6 +339,14 @@ describe('humanspec context CLI', () => {
     for (const target of [roadmapPath, learnerPath, archivedLearningPath]) {
       await fs.writeFile(target, (await fs.readFile(target, 'utf8')).replace(/\n/g, '\r\n'), 'utf8');
     }
+    const persistedAdaptiveRoadmap = await fs.readFile(roadmapPath, 'utf8');
+    await fs.writeFile(
+      roadmapPath,
+      persistedAdaptiveRoadmap
+        .replace('- status: active', '- status: completed')
+        .replace('\r\n- [ ] slice: <change-name> — <学习重点>', '\r\n- [ ] slice: packed-replay-next — Preserve CRLF adaptive evidence'),
+      'utf8'
+    );
     // This persisted marker represents an interruption after canonical archive
     // but before the learner document was written.
     await fs.appendFile(
@@ -254,6 +373,8 @@ describe('humanspec context CLI', () => {
     expect(learner.replace(/\r\n/g, '')).not.toContain('\n');
     const roadmap = await fs.readFile(roadmapPath, 'utf8');
     expect(roadmap).toContain(`archived: ${changeName} — complete (feedback: complete)`);
+    expect(roadmap).toContain('- status: completed');
+    expect(roadmap).toContain('slice: packed-replay-next — Preserve CRLF adaptive evidence');
     expect(roadmap.replace(/\r\n/g, '')).not.toContain('\n');
 
     const windowsArchivePath = path.win32.join(

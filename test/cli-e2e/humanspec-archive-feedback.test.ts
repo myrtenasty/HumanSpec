@@ -50,7 +50,7 @@ describe('HumanSpec archive-feedback journeys', () => {
     const roadmap = await fs.readFile(paths.roadmap, 'utf8');
     await fs.writeFile(
       paths.roadmap,
-      roadmap.replace('- [ ] slice: <change-name> — <学习重点>', `- [ ] slice: ${changeName} — archive feedback`),
+      roadmap.replace('\n- [ ] slice: <change-name> — <学习重点>', `\n- [ ] slice: ${changeName} — archive feedback`),
       'utf8'
     );
     writeSpec(
@@ -77,11 +77,32 @@ describe('HumanSpec archive-feedback journeys', () => {
         gaps: ['Retry reconciliation'],
         reviewItems: ['Retry reconciliation'],
       },
+      milestone: { identity: '1', status: 'completed' },
+      candidate: { changeName: 'adaptive-archive-next', learningFocus: 'Practice archive feedback evidence' },
+      evidenceReferences: ['mastered: Archive feedback boundaries'],
     });
     expect(plan.status).toBe('ready');
     const applied = await applyArchiveFeedback(plan, { confirmed: true });
     expect(applied.status).toBe('complete');
-    expect((await fs.readFile(paths.roadmap, 'utf8')).match(new RegExp(`archived: ${changeName} .*feedback: complete`))).toHaveLength(1);
+    const appliedRoadmap = await fs.readFile(paths.roadmap, 'utf8');
+    expect(appliedRoadmap).toContain('- status: completed');
+    expect(appliedRoadmap).toContain('slice: adaptive-archive-next — Practice archive feedback evidence');
+    expect(appliedRoadmap.match(new RegExp(`archived: ${changeName} .*feedback: complete`))).toHaveLength(1);
+    expect(await fs.stat(path.join(root, 'openspec', 'changes', 'adaptive-archive-next')).catch(() => null)).toBeNull();
+    const next = await runCLI(['humanspec', 'context', 'next', '--json'], { cwd: root });
+    expect(next.exitCode, next.stderr).toBe(0);
+    const nextEnvelope = JSON.parse(next.stdout);
+    expect(nextEnvelope).toMatchObject({
+      operation: 'next',
+      status: 'ready',
+      data: {
+        activeMilestone: null,
+        candidates: [{ changeName: 'adaptive-archive-next' }],
+      },
+    });
+    expect(nextEnvelope.data.learnerRecords).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: 'mastered', topic: 'Archive feedback boundaries' }),
+    ]));
     const learner = await fs.readFile(paths.learner, 'utf8');
     expect(learner).toContain('- [ ] mastered: Archive feedback boundaries');
     expect(learner).toContain('- [ ] gap: Retry reconciliation');

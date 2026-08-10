@@ -393,6 +393,7 @@ export const COMMAND_REGISTRY: CommandDefinition[] = [
             description: 'Create a feedback plan from canonical archived evidence',
             flags: [
               { name: 'change', description: 'Archived change name', takesValue: true },
+              { name: 'adaptive', description: 'Structured learner-confirmed milestone and candidate proposal JSON', takesValue: true },
               COMMON_FLAGS.json,
               COMMON_FLAGS.store,
             ],
@@ -403,6 +404,7 @@ export const COMMAND_REGISTRY: CommandDefinition[] = [
             flags: [
               { name: 'plan', description: 'Feedback-plan JSON file, or - for standard input', takesValue: true },
               { name: 'yes', description: 'Confirm that the learner explicitly approved this plan' },
+              { name: 'reject-candidate', description: 'Apply confirmed archive, milestone, and learner effects while excluding the candidate' },
               COMMON_FLAGS.json,
               COMMON_FLAGS.store,
             ],

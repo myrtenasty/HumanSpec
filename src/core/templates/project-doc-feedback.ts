@@ -2,12 +2,15 @@ import { createHash } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 
+import { validateChangeName } from '../../utils/change-utils.js';
 import {
   detectHumanSpecDocType,
   getProjectDocTemplate,
   resolveProjectDocPath,
+  ROADMAP_MILESTONE_STATUSES,
   type ProjectDocId,
   type ProjectDocSectionDescriptor,
+  type RoadmapMilestoneStatus,
 } from './project-docs.js';
 import {
   hasMeaningfulLearningFeedbackTopic,
@@ -55,6 +58,8 @@ export interface ProjectDocumentFeedbackAnalysis {
   candidates: RoadmapCandidateRecord[];
   archivedRecords: ArchivedRoadmapRecord[];
   learnerRecords: LearnerFeedbackRecord[];
+  milestones: RoadmapMilestoneRecord[];
+  activeMilestone: RoadmapMilestoneRecord | null;
 }
 
 export interface RoadmapCandidateRecord {
@@ -64,6 +69,17 @@ export interface RoadmapCandidateRecord {
   checked: boolean;
   line: number;
   raw: string;
+}
+
+export interface RoadmapMilestoneRecord {
+  /** Exact identity from the `## 里程碑 <identity>` heading. */
+  identity: string;
+  /** Explicit lifecycle status, when the roadmap has been updated to the grammar. */
+  status: RoadmapMilestoneStatus | null;
+  /** Compatibility state inferred for a legacy roadmap without status records. */
+  inferredStatus: RoadmapMilestoneStatus | null;
+  headingLine: number;
+  statusLine: number | null;
 }
 
 export interface ArchivedRoadmapRecord {
@@ -121,6 +137,31 @@ export interface LearnerFeedbackProposal {
   conflicts: ProjectDocumentFeedbackIssue[];
 }
 
+export type CandidateDisposition = 'confirmed' | 'rejected' | 'not-proposed';
+
+export interface AdaptiveMilestoneTransitionInput {
+  /** Exact identity from the selected roadmap milestone heading. */
+  identity: string;
+  /** Learner-confirmed lifecycle state to write. */
+  status: RoadmapMilestoneStatus;
+}
+
+export interface AdaptiveCandidateInput {
+  /** A valid, normalized OpenSpec change name. */
+  changeName: string;
+  /** Learner-editable explanation of the practice direction. */
+  learningFocus: string;
+  /** Durable evidence references used by the workflow to explain this proposal. */
+  evidenceReferences?: readonly string[];
+}
+
+export interface RoadmapMilestoneTransition {
+  identity: string;
+  previousStatus: RoadmapMilestoneStatus;
+  proposedStatus: RoadmapMilestoneStatus;
+  inferred: boolean;
+}
+
 export interface ArchiveFeedbackPlanInput {
   projectRoot?: string;
   changeName: string;
@@ -134,6 +175,14 @@ export interface ArchiveFeedbackPlanInput {
   evidence?: LearnerFeedbackEvidence;
   learningEvidence?: LearnerFeedbackEvidence;
   verificationRecord?: string;
+  /** Learner-confirmed milestone lifecycle proposal; semantic selection stays in the workflow. */
+  milestone?: AdaptiveMilestoneTransitionInput;
+  /** Optional next candidate proposed by the workflow and validated by this runtime. */
+  candidate?: AdaptiveCandidateInput;
+  /** Lets the learner accept feedback effects while declining the proposed candidate. */
+  candidateDisposition?: CandidateDisposition;
+  /** Evidence references carried through the preview without deriving new meaning. */
+  evidenceReferences?: readonly string[];
   /** Direct contents are useful for pure tests and callers with pre-read files. */
   documents?: Partial<Record<ProjectDocId, string | { path?: string; content: string }>>;
   projectContent?: string;
@@ -155,6 +204,10 @@ export interface ArchiveFeedbackDocumentPlan {
   pendingContent?: string;
   /** Roadmap content after learner feedback has been written. */
   completeContent?: string;
+  /** Equivalent pending document when the candidate is explicitly declined. */
+  withoutCandidatePendingContent?: string;
+  /** Equivalent complete document when the candidate is explicitly declined. */
+  withoutCandidateCompleteContent?: string;
   /** Learner content after the confirmed records are inserted. */
   proposedContent?: string;
   changed: boolean;
@@ -170,14 +223,23 @@ export interface ArchiveFeedbackPlan {
   issues: ProjectDocumentFeedbackIssue[];
   documents: Partial<Record<ProjectDocId, ArchiveFeedbackDocumentPlan>>;
   analyses: Partial<Record<ProjectDocId, ProjectDocumentFeedbackAnalysis>>;
+  /** The exact completed candidate removed from the roadmap, when it was present. */
+  completedSlice?: RoadmapCandidateRecord;
+  /** The archived outcome record, existing or proposed, shown separately in preview. */
   archivedRecord?: ArchivedRoadmapRecord;
   learnerRecords: LearnerFeedbackRecord[];
   duplicateLearnerRecords: LearnerFeedbackRecord[];
   archivedOutcome: string;
   feedbackState: 'pending' | 'complete';
+  milestoneTransition?: RoadmapMilestoneTransition;
+  candidate?: AdaptiveCandidateInput;
+  candidateStatus: CandidateDisposition;
+  evidenceReferences: readonly string[];
 }
 
 export interface ArchiveFeedbackApplyOptions {
+  /** Override a confirmed proposal to explicitly decline only its candidate effect. */
+  candidateDisposition?: CandidateDisposition;
   /** Injectable for tests and callers that need to report a write failure. */
   atomicWrite?: (filePath: string, content: string) => Promise<void>;
   /** Explicitly reject the preview without changing either document. */
@@ -192,6 +254,7 @@ export interface ArchiveFeedbackApplyResult {
   pendingDocuments: ProjectDocId[];
   issues: ProjectDocumentFeedbackIssue[];
   reconciliationRequired: boolean;
+  candidateStatus: CandidateDisposition;
   nextAction: string;
 }
 
@@ -202,6 +265,8 @@ export interface NextRoadmapContext {
   archivedChangeNames: string[];
   pendingFeedback: ArchivedRoadmapRecord[];
   learnerRecords: LearnerFeedbackRecord[];
+  activeMilestone: RoadmapMilestoneRecord | null;
+  emptyReason?: 'no-confirmed-candidate';
 }
 
 interface SectionRange {
@@ -216,7 +281,17 @@ interface NormalizedDocument {
   newline: '\n' | '\r\n';
 }
 
+interface ResolvedAdaptiveEffects {
+  milestoneTransition?: RoadmapMilestoneTransition;
+  candidate?: AdaptiveCandidateInput;
+  candidateStatus: CandidateDisposition;
+  shouldAppendCandidate: boolean;
+  evidenceReferences: readonly string[];
+}
+
 const ROADMAP_CANDIDATE_PATTERN = /^\s*-\s*\[([ xX])\]\s*slice:\s*(.+?)\s+—\s*(.+?)\s*$/u;
+const ROADMAP_MILESTONE_HEADING_PATTERN = /^里程碑\s+(.+?)\s*$/u;
+const ROADMAP_MILESTONE_STATUS_PATTERN = /^\s*-\s*status:\s*(.+?)\s*$/u;
 const ROADMAP_ARCHIVED_PATTERN = /^\s*-\s*\[([ xX])\]\s*archived:\s*(.+?)\s+—\s*(.+?)\s+\(feedback:\s*(pending|complete)\)\s*$/u;
 const LEARNER_RECORD_PATTERN = /^\s*-\s*\[([ xX])\]\s*(gap|mastered|review):\s*(.+?)\s*$/u;
 const HEADING_PATTERN = /^(#{1,6})\s+(.+?)\s*$/u;
@@ -308,6 +383,164 @@ function htmlCommentLines(lines: readonly string[]): boolean[] {
     if (!inComment && opening !== -1 && closing === -1) inComment = true;
     else if (inComment && closing !== -1) inComment = false;
   }
+  return result;
+}
+
+function parseMilestoneRecords(lines: readonly string[]): {
+  records: RoadmapMilestoneRecord[];
+  issues: Array<{ message: string; line: number }>;
+} {
+  const records: RoadmapMilestoneRecord[] = [];
+  const issues: Array<{ message: string; line: number }> = [];
+  const comments = htmlCommentLines(lines);
+  for (let index = 0; index < lines.length; index += 1) {
+    if (comments[index]) continue;
+    const heading = lineIsHeading(lines[index]);
+    if (!heading || heading.level !== 2) continue;
+    const identityMatch = heading.heading.match(ROADMAP_MILESTONE_HEADING_PATTERN);
+    if (!identityMatch || !hasMeaningfulTopic(identityMatch[1])) continue;
+
+    let end = lines.length;
+    for (let cursor = index + 1; cursor < lines.length; cursor += 1) {
+      const nextHeading = lineIsHeading(lines[cursor]);
+      if (nextHeading && nextHeading.level <= 2) {
+        end = cursor;
+        break;
+      }
+    }
+    let status: RoadmapMilestoneStatus | null = null;
+    let statusLine: number | null = null;
+    for (let cursor = index + 1; cursor < end; cursor += 1) {
+      if (comments[cursor]) continue;
+      const match = normalizeLine(lines[cursor]).match(ROADMAP_MILESTONE_STATUS_PATTERN);
+      if (!match) continue;
+      if (statusLine !== null) {
+        issues.push({ message: `Milestone ${JSON.stringify(identityMatch[1].trim())} has multiple status records.`, line: cursor });
+        continue;
+      }
+      statusLine = cursor;
+      const candidate = match[1].trim();
+      if (!ROADMAP_MILESTONE_STATUSES.includes(candidate as RoadmapMilestoneStatus)) {
+        issues.push({ message: `Milestone ${JSON.stringify(identityMatch[1].trim())} uses unsupported status ${JSON.stringify(candidate)}.`, line: cursor });
+        continue;
+      }
+      status = candidate as RoadmapMilestoneStatus;
+    }
+    records.push({
+      identity: identityMatch[1].trim(),
+      status,
+      inferredStatus: null,
+      headingLine: index,
+      statusLine,
+    });
+  }
+
+  const explicitStatuses = records.filter((record) => record.status !== null);
+  if (records.length > 0 && explicitStatuses.length === 0) {
+    records[0].inferredStatus = 'active';
+  } else if (explicitStatuses.length > 0 && explicitStatuses.length !== records.length) {
+    for (const record of records.filter((candidate) => candidate.status === null)) {
+      issues.push({ message: `Milestone ${JSON.stringify(record.identity)} is missing a status record in a status-aware roadmap.`, line: record.headingLine });
+    }
+  }
+  const active = records.filter((record) => record.status === 'active');
+  if (active.length > 1) {
+    for (const record of active) {
+      issues.push({ message: `Milestone ${JSON.stringify(record.identity)} is active, but a roadmap may have at most one active milestone.`, line: record.statusLine ?? record.headingLine });
+    }
+  }
+  return { records, issues };
+}
+
+function milestoneState(milestone: RoadmapMilestoneRecord): RoadmapMilestoneStatus | null {
+  return milestone.status ?? milestone.inferredStatus;
+}
+
+function normalizeCandidateIdentity(changeName: string): string {
+  return changeName.trim().toLocaleLowerCase();
+}
+
+function allowedMilestoneTransition(from: RoadmapMilestoneStatus, to: RoadmapMilestoneStatus): boolean {
+  if (from === to) return true;
+  return (from === 'planned' && (to === 'active' || to === 'paused'))
+    || (from === 'active' && (to === 'completed' || to === 'paused'))
+    || (from === 'paused' && (to === 'planned' || to === 'active'));
+}
+
+function resolveAdaptiveEffects(
+  input: ArchiveFeedbackPlanInput,
+  roadmap: ProjectDocumentFeedbackAnalysis,
+  issues: ProjectDocumentFeedbackIssue[]
+): ResolvedAdaptiveEffects {
+  const candidateStatus = input.candidateDisposition ?? (input.candidate ? 'confirmed' : 'not-proposed');
+  const evidenceReferences = [...new Set((input.evidenceReferences ?? input.candidate?.evidenceReferences ?? [])
+    .map((reference) => reference.trim())
+    .filter(hasMeaningfulTopic))];
+  const result: ResolvedAdaptiveEffects = {
+    candidateStatus,
+    shouldAppendCandidate: false,
+    evidenceReferences,
+  };
+
+  if (input.milestone) {
+    const identity = input.milestone.identity.trim();
+    const milestone = roadmap.milestones.find((candidate) => candidate.identity === identity);
+    const previousStatus = milestone ? milestoneState(milestone) : null;
+    if (!milestone || !previousStatus) {
+      issues.push(issue('roadmap', 'malformed', `Selected milestone ${JSON.stringify(identity)} does not exist or has no valid lifecycle state.`, '# 里程碑'));
+    } else if (!allowedMilestoneTransition(previousStatus, input.milestone.status)) {
+      issues.push(issue('roadmap', 'conflict', `Milestone ${JSON.stringify(identity)} cannot transition from ${previousStatus} to ${input.milestone.status}.`, '# 里程碑', milestone.headingLine));
+    } else {
+      const proposedStatuses = roadmap.milestones.map((candidate) => (
+        candidate.identity === identity ? input.milestone!.status : milestoneState(candidate)
+      ));
+      if (proposedStatuses.filter((status) => status === 'active').length > 1) {
+        issues.push(issue('roadmap', 'ambiguous', 'A complete proposed roadmap may contain at most one active milestone.', '# 里程碑', milestone.headingLine));
+      } else {
+        result.milestoneTransition = {
+          identity,
+          previousStatus,
+          proposedStatus: input.milestone.status,
+          inferred: milestone.status === null,
+        };
+      }
+    }
+  }
+
+  if (candidateStatus === 'confirmed' && !input.candidate) {
+    issues.push(issue('roadmap', 'malformed', 'A confirmed candidate disposition requires a candidate change name and learning focus.', '# 候选切片'));
+  }
+  if (!input.candidate) return result;
+
+  const candidate = {
+    changeName: input.candidate.changeName.trim(),
+    learningFocus: input.candidate.learningFocus.trim(),
+    ...(input.candidate.evidenceReferences ? { evidenceReferences: input.candidate.evidenceReferences } : {}),
+  };
+  const validation = validateChangeName(candidate.changeName);
+  if (!validation.valid) {
+    issues.push(issue('roadmap', 'malformed', `Proposed candidate ${JSON.stringify(candidate.changeName)} is not a valid change name: ${validation.error}.`, '# 候选切片'));
+  }
+  if (!hasMeaningfulTopic(candidate.learningFocus)) {
+    issues.push(issue('roadmap', 'malformed', 'Proposed candidate learning focus must be meaningful.', '# 候选切片'));
+  }
+
+  const normalizedName = normalizeCandidateIdentity(candidate.changeName);
+  if (normalizedName === normalizeCandidateIdentity(input.changeName)) {
+    issues.push(issue('roadmap', 'conflict', `Proposed candidate ${JSON.stringify(candidate.changeName)} is the archived change and cannot be reintroduced.`, '# 候选切片'));
+  }
+  if (roadmap.archivedRecords.some((record) => normalizeCandidateIdentity(record.changeName) === normalizedName)) {
+    issues.push(issue('roadmap', 'conflict', `Proposed candidate ${JSON.stringify(candidate.changeName)} is already archived and cannot be reintroduced.`, '# 已归档切片'));
+  }
+  const existing = roadmap.candidates.find((record) => normalizeCandidateIdentity(record.changeName) === normalizedName);
+  if (existing) {
+    if (normalizeFeedbackTopic(existing.learningFocus) !== normalizeFeedbackTopic(candidate.learningFocus)) {
+      issues.push(issue('roadmap', 'conflict', `Existing candidate ${JSON.stringify(existing.changeName)} has conflicting learning focus; preserved the learner-authored record.`, '# 候选切片', existing.line));
+    }
+  } else if (candidateStatus === 'confirmed') {
+    result.shouldAppendCandidate = true;
+  }
+  result.candidate = candidate;
   return result;
 }
 
@@ -452,6 +685,8 @@ export function analyzeProjectDocument(
   const candidates: RoadmapCandidateRecord[] = [];
   const archivedRecords: ArchivedRoadmapRecord[] = [];
   const learnerRecords: LearnerFeedbackRecord[] = [];
+  const milestones: RoadmapMilestoneRecord[] = [];
+  let activeMilestone: RoadmapMilestoneRecord | null = null;
 
   if (detected === null) {
     issues.push(issue(id, 'unmarked', `Registered document ${documentPath} has no ${template.markerType} frontmatter marker.`));
@@ -467,6 +702,8 @@ export function analyzeProjectDocument(
       candidates,
       archivedRecords,
       learnerRecords,
+      milestones,
+      activeMilestone,
     };
   }
 
@@ -484,6 +721,13 @@ export function analyzeProjectDocument(
   }
 
   if (id === 'roadmap') {
+    const parsedMilestones = parseMilestoneRecords(normalized.lines);
+    milestones.push(...parsedMilestones.records);
+    for (const milestoneIssue of parsedMilestones.issues) {
+      issues.push(issue(id, 'malformed', milestoneIssue.message, '# 里程碑', milestoneIssue.line));
+    }
+    activeMilestone = milestones.find((milestone) => milestone.status === 'active' || milestone.inferredStatus === 'active') ?? null;
+
     const candidateDescriptor = template.feedback?.candidateSlice.sectionHeading ?? '# 候选切片';
     const candidateSection = findSection(normalized.lines, {
       id: 'candidate-slices',
@@ -543,6 +787,8 @@ export function analyzeProjectDocument(
     candidates,
     archivedRecords,
     learnerRecords,
+    milestones,
+    activeMilestone,
   };
 }
 
@@ -622,6 +868,8 @@ export async function readProjectDocumentFeedbackContext(
           candidates: [],
           archivedRecords: [],
           learnerRecords: [],
+          milestones: [],
+          activeMilestone: null,
         };
         issues.push(documentIssue);
         continue;
@@ -836,6 +1084,44 @@ function recordLine(record: LearnerFeedbackRecord): string {
   return `- [ ] ${record.kind}: ${record.topic}`;
 }
 
+function setMilestoneStatus(content: string, transition: RoadmapMilestoneTransition): string {
+  const document = normalizeDocument(content);
+  const headingIndex = document.lines.findIndex((line) => {
+    const heading = lineIsHeading(line);
+    return heading?.level === 2 && heading.heading === `里程碑 ${transition.identity}`;
+  });
+  if (headingIndex === -1) return content;
+  let sectionEnd = document.lines.length;
+  for (let index = headingIndex + 1; index < document.lines.length; index += 1) {
+    const heading = lineIsHeading(document.lines[index]);
+    if (heading && heading.level <= 2) {
+      sectionEnd = index;
+      break;
+    }
+  }
+  for (let index = headingIndex + 1; index < sectionEnd; index += 1) {
+    if (ROADMAP_MILESTONE_STATUS_PATTERN.test(normalizeLine(document.lines[index]))) {
+      document.lines[index] = `- status: ${transition.proposedStatus}`;
+      return renderDocument(document, document.lines);
+    }
+  }
+  document.lines.splice(headingIndex + 1, 0, `- status: ${transition.proposedStatus}`);
+  return renderDocument(document, document.lines);
+}
+
+function candidateRecordLine(candidate: AdaptiveCandidateInput): string {
+  return `- [ ] slice: ${candidate.changeName} — ${candidate.learningFocus}`;
+}
+
+function appendCandidateRecord(content: string, candidate: AdaptiveCandidateInput): string {
+  const descriptor = getProjectDocTemplate('roadmap').feedback!.candidateSlice;
+  return appendToSection(content, {
+    id: 'candidate-slices',
+    heading: descriptor.sectionHeading,
+    level: 1,
+  }, [candidateRecordLine(candidate)]);
+}
+
 function appendToSection(content: string, descriptor: ProjectDocSectionDescriptor, additions: readonly string[]): string {
   if (additions.length === 0) return content;
   const document = normalizeDocument(content);
@@ -971,6 +1257,10 @@ export async function planArchiveFeedback(input: ArchiveFeedbackPlanInput): Prom
   const archivedOutcome = (input.milestoneOutcome ?? input.outcome ?? (
     defaultComplete ? 'complete' : 'incomplete'
   )).replace(/[\r\n]/gu, ' ').trim() || 'incomplete';
+  const requestedCandidateStatus = input.candidateDisposition ?? (input.candidate ? 'confirmed' : 'not-proposed');
+  const requestedEvidenceReferences = [...new Set((input.evidenceReferences ?? input.candidate?.evidenceReferences ?? [])
+    .map((reference) => reference.trim())
+    .filter(hasMeaningfulTopic))];
 
   if (issues.length > 0 || !roadmap || !learner || roadmap.content === undefined || learner.content === undefined) {
     return {
@@ -986,6 +1276,8 @@ export async function planArchiveFeedback(input: ArchiveFeedbackPlanInput): Prom
       duplicateLearnerRecords: [],
       archivedOutcome,
       feedbackState: 'pending',
+      candidateStatus: requestedCandidateStatus,
+      evidenceReferences: requestedEvidenceReferences,
     };
   }
 
@@ -997,6 +1289,7 @@ export async function planArchiveFeedback(input: ArchiveFeedbackPlanInput): Prom
   if (matchingCandidates.length > 1) {
     issues.push(issue('roadmap', 'ambiguous', `Multiple candidate slices match ${JSON.stringify(input.changeName)}; no exact line can be selected.`, '# 候选切片'));
   }
+  const adaptive = resolveAdaptiveEffects(input, roadmap, issues);
   if (issues.length > context.issues.length) {
     return {
       changeName: input.changeName,
@@ -1011,16 +1304,26 @@ export async function planArchiveFeedback(input: ArchiveFeedbackPlanInput): Prom
       duplicateLearnerRecords: [],
       archivedOutcome,
       feedbackState: 'pending',
+      milestoneTransition: adaptive.milestoneTransition,
+      candidate: adaptive.candidate,
+      candidateStatus: adaptive.candidateStatus,
+      evidenceReferences: adaptive.evidenceReferences,
     };
   }
 
   const existingArchived = matchingArchived[0];
-  const roadmapPending = existingArchived
+  let roadmapPendingWithoutCandidate = existingArchived
     ? roadmap.content
     : ensureArchiveRecord(
       removeCandidateLine(roadmap.content, matchingCandidates[0]),
       archiveRecordLine(input.changeName, archivedOutcome, 'pending')
     );
+  if (adaptive.milestoneTransition) {
+    roadmapPendingWithoutCandidate = setMilestoneStatus(roadmapPendingWithoutCandidate, adaptive.milestoneTransition);
+  }
+  const roadmapPending = adaptive.shouldAppendCandidate && adaptive.candidate
+    ? appendCandidateRecord(roadmapPendingWithoutCandidate, adaptive.candidate)
+    : roadmapPendingWithoutCandidate;
   const pendingArchived = existingArchived ?? {
     kind: 'archived-slice' as const,
     changeName: input.changeName,
@@ -1044,11 +1347,16 @@ export async function planArchiveFeedback(input: ArchiveFeedbackPlanInput): Prom
       issues,
       documents,
       analyses,
+      completedSlice: matchingCandidates[0],
       archivedRecord: existingArchived,
       learnerRecords: proposal.records,
       duplicateLearnerRecords: proposal.duplicates,
       archivedOutcome,
       feedbackState: 'pending',
+      milestoneTransition: adaptive.milestoneTransition,
+      candidate: adaptive.candidate,
+      candidateStatus: adaptive.candidateStatus,
+      evidenceReferences: adaptive.evidenceReferences,
     };
   }
 
@@ -1062,11 +1370,16 @@ export async function planArchiveFeedback(input: ArchiveFeedbackPlanInput): Prom
       issues,
       documents,
       analyses,
+      completedSlice: matchingCandidates[0],
       archivedRecord: existingArchived,
       learnerRecords: [],
       duplicateLearnerRecords: proposal.duplicates,
       archivedOutcome: existingArchived.outcome,
       feedbackState: 'complete',
+      milestoneTransition: adaptive.milestoneTransition,
+      candidate: adaptive.candidate,
+      candidateStatus: adaptive.candidateStatus,
+      evidenceReferences: adaptive.evidenceReferences,
     };
   }
 
@@ -1080,6 +1393,15 @@ export async function planArchiveFeedback(input: ArchiveFeedbackPlanInput): Prom
     },
     'complete'
   );
+  const roadmapCompleteWithoutCandidate = replaceArchiveRecordState(
+    roadmapPendingWithoutCandidate,
+    existingArchived ?? {
+      ...pendingArchived,
+      line: findArchivedRecordLine(roadmapPendingWithoutCandidate, input.changeName),
+      raw: archiveRecordLine(input.changeName, archivedOutcome, 'pending'),
+    },
+    'complete'
+  );
   documents.roadmap = {
     id: 'roadmap',
     path: roadmap.path,
@@ -1087,6 +1409,8 @@ export async function planArchiveFeedback(input: ArchiveFeedbackPlanInput): Prom
     beforeSha256: roadmap.contentSha256 ?? sha256(roadmap.content),
     pendingContent: roadmapPending,
     completeContent: roadmapComplete,
+    withoutCandidatePendingContent: roadmapPendingWithoutCandidate,
+    withoutCandidateCompleteContent: roadmapCompleteWithoutCandidate,
     changed: roadmapPending !== roadmap.content || roadmapComplete !== roadmapPending,
   };
   documents.learner = {
@@ -1107,11 +1431,16 @@ export async function planArchiveFeedback(input: ArchiveFeedbackPlanInput): Prom
     issues,
     documents,
     analyses,
-    archivedRecord: existingArchived,
+    completedSlice: matchingCandidates[0],
+    archivedRecord: pendingArchived,
     learnerRecords: proposal.records,
     duplicateLearnerRecords: proposal.duplicates,
     archivedOutcome,
     feedbackState: 'pending',
+    milestoneTransition: adaptive.milestoneTransition,
+    candidate: adaptive.candidate,
+    candidateStatus: adaptive.candidateStatus,
+    evidenceReferences: adaptive.evidenceReferences,
   };
 }
 
@@ -1252,6 +1581,9 @@ export async function applyArchiveFeedback(
 ): Promise<ArchiveFeedbackApplyResult> {
   const writtenDocuments: ProjectDocId[] = [];
   const issues = [...plan.issues];
+  const candidateStatus = options.candidateDisposition === 'rejected' && plan.candidateStatus === 'confirmed'
+    ? 'rejected'
+    : plan.candidateStatus;
   if (plan.status === 'blocked' || !plan.ready) {
     return {
       status: 'blocked',
@@ -1261,6 +1593,7 @@ export async function applyArchiveFeedback(
       pendingDocuments: ['roadmap', 'learner'],
       issues,
       reconciliationRequired: false,
+      candidateStatus,
       nextAction: 'Repair the reported project documents and re-run archive feedback.',
     };
   }
@@ -1273,6 +1606,7 @@ export async function applyArchiveFeedback(
       pendingDocuments: [],
       issues,
       reconciliationRequired: false,
+      candidateStatus,
       nextAction: 'Run /humanspec:next; no new change was created.',
     };
   }
@@ -1288,6 +1622,7 @@ export async function applyArchiveFeedback(
         issue('roadmap', 'confirmation-required', 'Feedback application requires explicit confirmation; no documents were written.'),
       ],
       reconciliationRequired: false,
+      candidateStatus,
       nextAction: 'Feedback preview rejected or unconfirmed; explicitly confirm it before applying. Documents remain unchanged.',
     };
   }
@@ -1306,6 +1641,7 @@ export async function applyArchiveFeedback(
       pendingDocuments: missing.length > 0 ? missing : ['roadmap', 'learner'],
       issues: [...issues, issue('roadmap', 'precondition', 'Feedback plan has no complete registered document operations.')],
       reconciliationRequired: false,
+      candidateStatus,
       nextAction: 'Create a new feedback preview with complete registered document operations.',
     };
   }
@@ -1320,12 +1656,19 @@ export async function applyArchiveFeedback(
       pendingDocuments: ['roadmap', 'learner'],
       issues: [...issues, ...preflightIssues],
       reconciliationRequired: false,
+      candidateStatus,
       nextAction: 'Create and explicitly confirm a new feedback preview before applying any document changes.',
     };
   }
 
   const atomicWrite = options.atomicWrite ?? defaultAtomicWrite;
-  const roadmapPendingApplied = await writePlannedDocument(roadmapPlan, roadmapPlan.pendingContent, atomicWrite, writtenDocuments, issues);
+  const roadmapPendingContent = candidateStatus === 'rejected'
+    ? roadmapPlan.withoutCandidatePendingContent ?? roadmapPlan.pendingContent
+    : roadmapPlan.pendingContent;
+  const roadmapCompleteContent = candidateStatus === 'rejected'
+    ? roadmapPlan.withoutCandidateCompleteContent ?? roadmapPlan.completeContent
+    : roadmapPlan.completeContent;
+  const roadmapPendingApplied = await writePlannedDocument(roadmapPlan, roadmapPendingContent, atomicWrite, writtenDocuments, issues);
   if (!roadmapPendingApplied) {
     return {
       status: issues.some((item) => item.code === 'conflict') ? 'conflict' : 'pending',
@@ -1335,6 +1678,7 @@ export async function applyArchiveFeedback(
       pendingDocuments: ['roadmap', 'learner'],
       issues,
       reconciliationRequired: true,
+      candidateStatus,
       nextAction: 'Keep the archive path and repair or retry the roadmap feedback record before selecting new work.',
     };
   }
@@ -1349,16 +1693,17 @@ export async function applyArchiveFeedback(
       pendingDocuments: ['learner'],
       issues,
       reconciliationRequired: true,
+      candidateStatus,
       nextAction: 'Retry archive feedback reconciliation; the roadmap record remains feedback: pending.',
     };
   }
 
   const completePlan: ArchiveFeedbackDocumentPlan = {
     ...roadmapPlan,
-    before: roadmapPlan.pendingContent,
-    beforeSha256: sha256(roadmapPlan.pendingContent),
+    before: roadmapPendingContent,
+    beforeSha256: sha256(roadmapPendingContent),
   };
-  const completeApplied = await writePlannedDocument(completePlan, roadmapPlan.completeContent, atomicWrite, writtenDocuments, issues);
+  const completeApplied = await writePlannedDocument(completePlan, roadmapCompleteContent, atomicWrite, writtenDocuments, issues);
   if (!completeApplied) {
     return {
       status: issues.some((item) => item.code === 'conflict') ? 'conflict' : 'pending',
@@ -1368,6 +1713,7 @@ export async function applyArchiveFeedback(
       pendingDocuments: ['roadmap'],
       issues,
       reconciliationRequired: true,
+      candidateStatus,
       nextAction: 'Retry archive feedback reconciliation; the learner records are applied but the roadmap remains pending.',
     };
   }
@@ -1380,7 +1726,8 @@ export async function applyArchiveFeedback(
     pendingDocuments: [],
     issues,
     reconciliationRequired: false,
-    nextAction: 'Run /humanspec:next or /humanspec:propose; archive does not create the next change.',
+    candidateStatus,
+    nextAction: 'Run /humanspec:next or /humanspec:propose; archive does not create the next change.'
   };
 }
 
@@ -1421,6 +1768,7 @@ export function resolveNextRoadmapContext(
   const issues = [...roadmap.issues, ...learner.issues];
   const archivedChangeNames = roadmap.archivedRecords.map((record) => record.changeName);
   const pendingFeedback = roadmap.archivedRecords.filter((record) => record.feedback === 'pending');
+  const activeMilestone = roadmap.activeMilestone;
 
   if (issues.length > 0) {
     return {
@@ -1430,6 +1778,7 @@ export function resolveNextRoadmapContext(
       archivedChangeNames,
       pendingFeedback,
       learnerRecords: learner.learnerRecords,
+      activeMilestone,
     };
   }
   if (pendingFeedback.length > 0) {
@@ -1440,6 +1789,7 @@ export function resolveNextRoadmapContext(
       archivedChangeNames,
       pendingFeedback,
       learnerRecords: learner.learnerRecords,
+      activeMilestone,
     };
   }
 
@@ -1457,6 +1807,8 @@ export function resolveNextRoadmapContext(
     archivedChangeNames,
     pendingFeedback,
     learnerRecords: learner.learnerRecords,
+    activeMilestone,
+    ...(candidates.length === 0 ? { emptyReason: 'no-confirmed-candidate' as const } : {}),
   };
 }
 

@@ -87,6 +87,8 @@ describe('HumanSpec next workflow templates', () => {
         'data.documents',
         '`blocked`, `reconciliation`, `ready`, and `empty`',
         'parsed candidates',
+        'active milestone',
+        'empty reason code',
         'package-internal helpers',
         'project',
         'roadmap',
@@ -146,6 +148,9 @@ describe('HumanSpec next workflow templates', () => {
       ]) {
         expect(text, `${label}: normalized ${state}`).toContain(state);
       }
+      expect(text, label).toContain('more than one candidate remains plausible');
+      expect(text, label).toContain('no-confirmed-candidate');
+      expect(text, label).toContain('intentionally has no confirmed candidate');
       expect(text, label).toContain('exactly one recommended next action');
       expect(text, label).toContain('Reason');
       expect(text, label).toContain('Evidence');

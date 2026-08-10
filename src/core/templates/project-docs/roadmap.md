@@ -9,6 +9,7 @@ version: 1
 
 ## 里程碑 1
 
+- status: active
 - 预期成果：
 - 学习重点：
 - 完成证据：

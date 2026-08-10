@@ -26,6 +26,11 @@ export const PROJECT_DOC_TEMPLATES_DIR = 'project-docs';
 
 export type ProjectDocId = 'project' | 'roadmap' | 'learner';
 
+/** The stable lifecycle values accepted by roadmap milestone status records. */
+export const ROADMAP_MILESTONE_STATUSES = ['planned', 'active', 'completed', 'paused'] as const;
+
+export type RoadmapMilestoneStatus = typeof ROADMAP_MILESTONE_STATUSES[number];
+
 /** A named heading that a registered project document must preserve. */
 export interface ProjectDocSectionDescriptor {
   /** Stable name used by feedback planners and tests. */
@@ -48,9 +53,20 @@ export interface ProjectDocRecordDescriptor {
   kind: 'candidate-slice' | 'archived-slice' | 'gap' | 'mastered' | 'review';
 }
 
+export interface RoadmapMilestoneStatusDescriptor {
+  /** Stable name used by roadmap analysis and feedback plans. */
+  id: 'milestone-status';
+  /** Exact list-item prefix used inside each milestone section. */
+  prefix: 'status:';
+  /** The only lifecycle values accepted by the registered grammar. */
+  values: readonly RoadmapMilestoneStatus[];
+}
+
 export interface ProjectDocFeedbackDescriptors {
   /** The optional section created after the first confirmed archive. */
   archiveSection: ProjectDocSectionDescriptor;
+  /** The exact lifecycle grammar used by roadmap milestone sections. */
+  milestoneStatus: RoadmapMilestoneStatusDescriptor;
   /** The roadmap candidate grammar used for exact change-name lookup. */
   candidateSlice: ProjectDocRecordDescriptor;
   /** The explicit pending-feedback state marker used during reconciliation. */
@@ -111,6 +127,11 @@ const PROJECT_SECTIONS = {
 
 const ROADMAP_FEEDBACK: ProjectDocFeedbackDescriptors = {
   archiveSection: { id: 'archived-slices', heading: '# 已归档切片', level: 1 },
+  milestoneStatus: {
+    id: 'milestone-status',
+    prefix: 'status:',
+    values: ROADMAP_MILESTONE_STATUSES,
+  },
   candidateSlice: {
     id: 'candidate-slice',
     sectionHeading: '# 候选切片',
@@ -188,6 +209,7 @@ export const PROJECT_DOC_TEMPLATES: readonly ProjectDocTemplate[] = [
 export const PROJECT_DOC_FEEDBACK_DESCRIPTORS = {
   roadmap: {
     archiveSection: ROADMAP_FEEDBACK.archiveSection,
+    milestoneStatus: ROADMAP_FEEDBACK.milestoneStatus,
     candidateSlice: ROADMAP_FEEDBACK.candidateSlice,
     pendingFeedback: ROADMAP_FEEDBACK.pendingFeedback,
     archivedSlice: ROADMAP_FEEDBACK.archivedSlice,
@@ -202,6 +224,7 @@ export const PROJECT_DOC_FEEDBACK_DESCRIPTORS = {
 } as const;
 
 export const ROADMAP_ARCHIVE_SECTION = ROADMAP_FEEDBACK.archiveSection;
+export const ROADMAP_MILESTONE_STATUS = ROADMAP_FEEDBACK.milestoneStatus;
 export const ROADMAP_CANDIDATE_SLICE = ROADMAP_FEEDBACK.candidateSlice;
 export const ROADMAP_PENDING_FEEDBACK = ROADMAP_FEEDBACK.pendingFeedback;
 export const ROADMAP_ARCHIVED_SLICE = ROADMAP_FEEDBACK.archivedSlice;

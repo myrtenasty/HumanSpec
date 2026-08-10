@@ -114,23 +114,36 @@ const STEPS = `**Steps**
    Only after the canonical archive succeeds, run:
 
    \`\`\`bash
-   openspec humanspec context feedback-plan --change "<name>" --json
+   openspec humanspec context feedback-plan --change "<name>" --adaptive '<structured-proposal-json>' --json
    \`\`\`
+
+   Before creating that plan, derive a semantic proposal from verified learner
+   state: select the exact current milestone heading, propose only an allowed
+   lifecycle transition, optionally propose one valid candidate change name and
+   learning focus, and list the mastered/gap/review evidence references that
+   explain it. Semantic choice remains learner-owned; the runtime only validates
+   and writes the structured proposal through its \`--adaptive\` JSON input.
 
    Preserve selected-root or store flags and present the versioned result's
    \`data.plan\` to the learner: it enumerates the exact bound document paths,
-   byte preconditions, proposed records, issues, and pending state. Ask for a
-   separate explicit learner confirmation. If it is declined or omitted, do not
-   apply the plan and do not describe feedback as complete. After confirmation,
-   save the complete plan envelope to a temporary file (or provide it on stdin)
-   and run:
+   byte preconditions, proposed records, issues, and pending state. It separately
+   previews completed-slice removal, archived outcome, milestone transition,
+   typed learner records, and the optional candidate. Ask for a separate explicit
+   learner confirmation. The learner may accept every effect, reject every effect,
+   or accept archive/milestone/learner effects while rejecting only the candidate.
+   If it is declined or omitted, do not apply the plan and do not describe
+   feedback as complete. After confirmation, save the complete plan envelope to a
+   temporary file (or provide it on stdin) and run:
 
    \`\`\`bash
    openspec humanspec context feedback-apply --plan <path|-> --yes --json
+   openspec humanspec context feedback-apply --plan <path|-> --yes --reject-candidate --json
    \`\`\`
 
-   Report its written and pending documents exactly. Do not implement direct
-   file replacement, recompute a plan, or bypass \`--yes\`.
+   Report its written and pending documents and explicit candidate disposition
+   exactly. A confirmed candidate remains only a roadmap record: never create its
+   change directory or artifacts. Do not implement direct file replacement,
+   recompute a plan, or bypass \`--yes\`.
 
 6. **Retry reconciliation without repeating archive**
 
@@ -141,10 +154,11 @@ const STEPS = `**Steps**
    \`\`\`
 
    Preserve selected-root or store flags. This public operation reconstructs
-   typed mastered, gap, and review records from canonical archived evidence,
-   reports already-applied records without duplicates, and must never re-infer
-   an outcome from narrative text, rerun specification synchronization, move
-   the change a second time, or create a new planning artifact. Route
+   typed mastered, gap, and review records plus the same persisted milestone and
+   candidate effects from canonical archived evidence, reports already-applied
+   records without duplicates, and must never re-infer an outcome from narrative
+   text or invent a replacement candidate, rerun specification synchronization,
+   move the change a second time, or create a new planning artifact. Route
    \`humanspec-next\` to reconciliation while feedback remains pending.
 
 7. **Keep the next action explicit and singular**

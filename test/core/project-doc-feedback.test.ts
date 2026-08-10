@@ -64,6 +64,223 @@ describe('HumanSpec project-document feedback registry and planner', () => {
     expect(analyzeProjectDocument('roadmap', duplicateHeading).issues.some((item) => item.code === 'duplicated')).toBe(true);
   });
 
+  it('parses milestone lifecycle grammar, reports legacy inference, and blocks ambiguous states', async () => {
+    const roadmap = await fixture('roadmap');
+    const valid = analyzeProjectDocument('roadmap', roadmap);
+    expect(valid.status).toBe('valid');
+    expect(valid.activeMilestone).toMatchObject({ identity: '1', status: 'active', inferredStatus: null });
+
+    const legacy = analyzeProjectDocument('roadmap', roadmap.replace('- status: active\n', ''));
+    expect(legacy.status).toBe('valid');
+    expect(legacy.activeMilestone).toMatchObject({ identity: '1', status: null, inferredStatus: 'active' });
+
+    const secondMilestone = [
+      '## 里程碑 2',
+      '',
+      '- status: active',
+      '- 预期成果：',
+      '',
+      '# 候选切片',
+    ].join('\n');
+    const ambiguous = analyzeProjectDocument('roadmap', roadmap.replace('# 候选切片', secondMilestone));
+    expect(ambiguous.status).toBe('malformed');
+    expect(ambiguous.issues.some((item) => item.message.includes('at most one active milestone'))).toBe(true);
+
+    const unsupported = analyzeProjectDocument('roadmap', roadmap.replace('status: active', 'status: future'));
+    expect(unsupported.status).toBe('malformed');
+    expect(unsupported.issues.some((item) => item.message.includes('unsupported status'))).toBe(true);
+  });
+
+  it('validates confirmed adaptive milestone and candidate effects without changing learner-owned text', async () => {
+    const { root, paths } = await projectFixture();
+    const plan = await planArchiveFeedback({
+      projectRoot: root,
+      changeName: 'completed-change',
+      evidence: { learningAssessment: 'learning complete' },
+      milestone: { identity: '1', status: 'completed' },
+      candidate: {
+        changeName: 'next-practice',
+        learningFocus: 'Practice lifecycle validation',
+        evidenceReferences: ['mastered lifecycle grammar'],
+      },
+    });
+
+    expect(plan.status).toBe('ready');
+    expect(plan.milestoneTransition).toMatchObject({ identity: '1', previousStatus: 'active', proposedStatus: 'completed' });
+    expect(plan.candidateStatus).toBe('confirmed');
+    expect(plan.documents.roadmap?.pendingContent).toContain('- status: completed');
+    expect(plan.documents.roadmap?.pendingContent).toContain('slice: next-practice — Practice lifecycle validation');
+
+    const invalidTransition = await planArchiveFeedback({
+      projectRoot: root,
+      changeName: 'invalid-transition',
+      milestone: { identity: '1', status: 'planned' },
+    });
+    expect(invalidTransition.status).toBe('blocked');
+    expect(invalidTransition.issues.some((item) => item.message.includes('cannot transition'))).toBe(true);
+
+    const invalidCandidate = await planArchiveFeedback({
+      projectRoot: root,
+      changeName: 'invalid-candidate',
+      candidate: { changeName: 'Not a change', learningFocus: 'valid focus' },
+    });
+    expect(invalidCandidate.status).toBe('blocked');
+    expect(invalidCandidate.issues.some((item) => item.message.includes('not a valid change name'))).toBe(true);
+
+    const sourceRoadmap = await fs.readFile(paths.roadmap, 'utf8');
+    expect(sourceRoadmap).toContain('- status: active');
+    expect(sourceRoadmap).not.toContain('next-practice');
+  });
+
+  it('handles confirmed, rejected, duplicate, archived, and conflicting adaptive candidates', async () => {
+    const rejectedFixture = await projectFixture();
+    const rejected = await planArchiveFeedback({
+      projectRoot: rejectedFixture.root,
+      changeName: 'rejected-source',
+      milestone: { identity: '1', status: 'completed' },
+      candidate: { changeName: 'next-practice', learningFocus: 'Practice lifecycle validation' },
+      candidateDisposition: 'rejected',
+    });
+    expect(rejected.status).toBe('ready');
+    expect(rejected.candidateStatus).toBe('rejected');
+    expect(rejected.documents.roadmap?.pendingContent).not.toContain('slice: next-practice');
+    const rejectedResult = await applyArchiveFeedback(rejected, { confirmed: true });
+    expect(rejectedResult.candidateStatus).toBe('rejected');
+    const rejectedRoadmap = await fs.readFile(rejectedFixture.paths.roadmap, 'utf8');
+    expect(rejectedRoadmap).toContain('- status: completed');
+    expect(rejectedRoadmap).not.toContain('slice: next-practice');
+
+    const noProposal = await planArchiveFeedback({ projectRoot: rejectedFixture.root, changeName: 'no-proposal' });
+    expect(noProposal.candidateStatus).toBe('not-proposed');
+
+    const duplicateFixture = await projectFixture();
+    const duplicateRoadmap = (await fs.readFile(duplicateFixture.paths.roadmap, 'utf8'))
+      .replace('\n- [ ] slice: <change-name> — <学习重点>', '\n- [ ] slice: next-practice — Practice lifecycle validation');
+    await fs.writeFile(duplicateFixture.paths.roadmap, duplicateRoadmap, 'utf8');
+    const duplicate = await planArchiveFeedback({
+      projectRoot: duplicateFixture.root,
+      changeName: 'duplicate-source',
+      candidate: { changeName: 'next-practice', learningFocus: 'Practice lifecycle validation' },
+    });
+    expect(duplicate.status).toBe('ready');
+    expect(duplicate.documents.roadmap?.pendingContent?.match(/slice: next-practice/g)?.length).toBe(1);
+
+    const conflict = await planArchiveFeedback({
+      projectRoot: duplicateFixture.root,
+      changeName: 'conflict-source',
+      candidate: { changeName: 'next-practice', learningFocus: 'A conflicting focus' },
+    });
+    expect(conflict.status).toBe('blocked');
+    expect(conflict.issues.some((item) => item.message.includes('conflicting learning focus'))).toBe(true);
+
+    const archivedFixture = await projectFixture();
+    await fs.appendFile(archivedFixture.paths.roadmap, '\n# 已归档切片\n\n- [x] archived: next-practice — complete (feedback: complete)\n', 'utf8');
+    const archived = await planArchiveFeedback({
+      projectRoot: archivedFixture.root,
+      changeName: 'archived-source',
+      candidate: { changeName: 'next-practice', learningFocus: 'Practice lifecycle validation' },
+    });
+    expect(archived.status).toBe('blocked');
+    expect(archived.issues.some((item) => item.message.includes('already archived'))).toBe(true);
+  });
+
+  it('applies and reconciles confirmed adaptive effects without creating a change', async () => {
+    const { root, paths } = await projectFixture();
+    const plan = await planArchiveFeedback({
+      projectRoot: root,
+      changeName: 'adaptive-source',
+      evidence: { learningAssessment: 'learning complete', masteredTopics: ['Lifecycle state'] },
+      milestone: { identity: '1', status: 'completed' },
+      candidate: { changeName: 'adaptive-next', learningFocus: 'Use adaptive feedback evidence' },
+    });
+    expect(plan.completedSlice).toBeUndefined();
+    expect(plan.archivedRecord).toMatchObject({ changeName: 'adaptive-source', feedback: 'pending' });
+
+    const applied = await applyArchiveFeedback(plan, { confirmed: true });
+    expect(applied).toMatchObject({ status: 'complete', candidateStatus: 'confirmed', reconciliationRequired: false });
+    const roadmap = await fs.readFile(paths.roadmap, 'utf8');
+    expect(roadmap).toContain('- status: completed');
+    expect(roadmap).toContain('slice: adaptive-next — Use adaptive feedback evidence');
+    expect(roadmap).toContain('archived: adaptive-source');
+    expect(await fs.readFile(paths.learner, 'utf8')).toContain('mastered: Lifecycle state');
+    await expect(fs.stat(path.join(root, 'openspec', 'changes', 'adaptive-next'))).rejects.toMatchObject({ code: 'ENOENT' });
+
+    const replayPlan = await planArchiveFeedback({
+      projectRoot: root,
+      changeName: 'adaptive-source',
+      evidence: { learningAssessment: 'learning complete', masteredTopics: ['Lifecycle state'] },
+      milestone: { identity: '1', status: 'completed' },
+      candidate: { changeName: 'adaptive-next', learningFocus: 'Use adaptive feedback evidence' },
+    });
+    expect(replayPlan.status).toBe('already-applied');
+    expect((await applyArchiveFeedback(replayPlan, { confirmed: true })).status).toBe('already-applied');
+    const replay = await reconcileArchiveFeedback({
+      projectRoot: root,
+      changeName: 'adaptive-source',
+      evidence: { learningAssessment: 'learning complete', masteredTopics: ['Lifecycle state'] },
+    });
+    expect(replay.status).toBe('already-applied');
+    const replayRoadmap = await fs.readFile(paths.roadmap, 'utf8');
+    expect(replayRoadmap.match(/slice: adaptive-next/g)?.length).toBe(1);
+    expect(replayRoadmap.match(/archived: adaptive-source/g)?.length).toBe(1);
+    expect((await fs.readFile(paths.learner, 'utf8')).match(/mastered: Lifecycle state/g)?.length).toBe(1);
+  });
+
+  it('reconciles an interrupted confirmed milestone and candidate write from pending roadmap evidence', async () => {
+    const { root, paths } = await projectFixture();
+    const plan = await planArchiveFeedback({
+      projectRoot: root,
+      changeName: 'interrupted-adaptive',
+      evidence: { learningAssessment: 'learning complete', masteredTopics: ['Replay evidence'] },
+      milestone: { identity: '1', status: 'completed' },
+      candidate: { changeName: 'replayed-next', learningFocus: 'Replay confirmed feedback' },
+    });
+    let writes = 0;
+    const interrupted = await applyArchiveFeedback(plan, {
+      confirmed: true,
+      atomicWrite: async (filePath, content) => {
+        writes += 1;
+        if (writes === 2) throw new Error('interrupted learner write');
+        await fs.writeFile(filePath, content, 'utf8');
+      },
+    });
+    expect(interrupted).toMatchObject({ status: 'pending', reconciliationRequired: true, candidateStatus: 'confirmed' });
+    const pendingRoadmap = await fs.readFile(paths.roadmap, 'utf8');
+    expect(pendingRoadmap).toContain('feedback: pending');
+    expect(pendingRoadmap).toContain('slice: replayed-next — Replay confirmed feedback');
+
+    const reconciled = await reconcileArchiveFeedback({
+      projectRoot: root,
+      changeName: 'interrupted-adaptive',
+      evidence: { learningAssessment: 'learning complete', masteredTopics: ['Replay evidence'] },
+    });
+    expect(reconciled.status).toBe('complete');
+    const finalRoadmap = await fs.readFile(paths.roadmap, 'utf8');
+    expect(finalRoadmap).toContain('feedback: complete');
+    expect(finalRoadmap.match(/slice: replayed-next/g)?.length).toBe(1);
+    expect(finalRoadmap.match(/status: completed/g)?.length).toBe(1);
+  });
+
+  it('returns active milestone evidence and an intentional empty reason for a confirmed-empty roadmap', async () => {
+    const roadmap = await fixture('roadmap');
+    const learner = await fixture('learner');
+    const empty = resolveNextRoadmapContext(roadmap, learner);
+    expect(empty).toMatchObject({
+      status: 'empty',
+      emptyReason: 'no-confirmed-candidate',
+      activeMilestone: { identity: '1', status: 'active' },
+    });
+
+    const readyRoadmap = roadmap.replace(
+      '\n- [ ] slice: <change-name> — <学习重点>',
+      '\n- [ ] slice: evidence-backed-next — Use mastered lifecycle evidence'
+    );
+    const ready = resolveNextRoadmapContext(readyRoadmap, learner);
+    expect(ready.status).toBe('ready');
+    expect(ready.activeMilestone).toMatchObject({ identity: '1', status: 'active' });
+    expect(ready.candidates).toMatchObject([{ changeName: 'evidence-backed-next' }]);
+  });
+
   it('matches one exact change name and preserves unrelated roadmap content', async () => {
     const { root, paths } = await projectFixture();
     const roadmap = (await fixture('roadmap'))

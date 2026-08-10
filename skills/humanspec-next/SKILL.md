@@ -73,8 +73,9 @@ adaptive archive feedback.
    and parse issues. If inspection is ready, run
    `openspec humanspec context next --json`. Its public result distinguishes
    `blocked`, `reconciliation`, `ready`, and `empty`, and returns the
-   parsed candidates, archived changes, pending feedback, and learner records
-   used for that decision. Do not reconstruct those results with package-internal
+   parsed candidates, archived changes, pending feedback, active milestone
+   details, typed learner records, and an explicit empty reason code used for
+   that decision. Do not reconstruct those results with package-internal
    helpers or a directory scan.
 
    If any document is missing, malformed, unmarked, or unresolved, stop before
@@ -134,11 +135,19 @@ adaptive archive feedback.
      is complete.
    - For a `ready` result, use only its returned parseable candidate slices,
      archived-change exclusion, and learner records. Name one fitting remaining
-     slice, explain its fit using the current milestone, `mastered:`,
-     `gap:`, and `review:` records, and hand off to `/humanspec-propose`.
-     Preserve propose's explicit confirmation gate: never run
+     slice, explain its fit using the returned active milestone and durable
+     `mastered:`, `gap:`, and `review:` records, and hand off to
+     `/humanspec-propose`. If more than one candidate remains plausible,
+     present the bounded alternatives with their evidence and require the
+     learner to select one; never silently choose. Preserve propose's explicit
+     confirmation gate: never run
      `openspec new change`, create a change directory, or create artifacts
      from this route without that confirmation.
+   - For an `empty` result with `no-confirmed-candidate`, report that the
+     roadmap intentionally has no confirmed candidate after archive or learner
+     rejection. Invite the learner to explore or explicitly propose a direction,
+     but do not re-propose the archived change, invent a new direction, write a
+     placeholder, or create a change.
    - With multiple resumable changes, show each name, planning progress, first
      unresolved state, and last known evidence. Ask the learner to choose
      exactly one of continue, pause, or return to the roadmap. Never choose the
@@ -219,8 +228,9 @@ adaptive archive feedback.
    - **Recommended next action**: exactly one registered HumanSpec handoff or
      one named artifact-authoring action;
    - **Reason**: one short explanation tied to the precedence;
-   - **Evidence**: the commands, registered paths, status fields, progress,
-     reflection result, or verification result used for the decision;
+   - **Evidence**: the commands, registered paths, active milestone, candidate
+     fit, typed learner records, status fields, progress, reflection result, or
+     verification result used for the decision;
    - **Blockers**: `none` or the concrete unresolved/conflicting evidence;
    - **Ownership boundary**: state what next may guide or write and what
      remains learner-owned.

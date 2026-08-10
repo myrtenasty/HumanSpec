@@ -33,6 +33,7 @@ import {
   resolveNextRoadmapContext,
   type ArchiveFeedbackApplyResult,
   type ArchiveFeedbackPlan,
+  type ArchiveFeedbackPlanInput,
   type NextRoadmapContext,
   type ProjectDocumentFeedbackIssue,
 } from '../core/templates/project-doc-feedback.js';
@@ -47,11 +48,13 @@ interface RootOptions {
 
 interface ChangeOptions extends RootOptions {
   change?: string;
+  adaptive?: string;
 }
 
 interface ApplyOptions extends RootOptions {
   plan?: string;
   yes?: boolean;
+  rejectCandidate?: boolean;
 }
 
 interface InspectDocumentData {
@@ -212,7 +215,7 @@ function nextActionForContext(context: NextRoadmapContext): string | undefined {
     case 'blocked': return 'Repair the listed project documents before choosing the next roadmap slice.';
     case 'reconciliation': return 'Run feedback-reconcile for the pending archived change before choosing new work.';
     case 'ready': return 'Choose one returned candidate slice for the next change.';
-    case 'empty': return 'No unchecked candidate slice is currently available.';
+    case 'empty': return 'No confirmed candidate is currently available; explore or explicitly propose a direction without creating one automatically.';
   }
 }
 
@@ -221,6 +224,8 @@ async function next(root: ResolvedOpenSpecRoot): Promise<HumanSpecContextResult<
   archivedChanges: string[];
   pendingFeedback: NextRoadmapContext['pendingFeedback'];
   learnerRecords: NextRoadmapContext['learnerRecords'];
+  activeMilestone: NextRoadmapContext['activeMilestone'];
+  emptyReason?: NextRoadmapContext['emptyReason'];
 }>> {
   const context = await readProjectDocumentFeedbackContext(root.path);
   const roadmap = context.analyses.roadmap;
@@ -230,7 +235,7 @@ async function next(root: ResolvedOpenSpecRoot): Promise<HumanSpecContextResult<
       operation: 'next',
       status: 'blocked',
       planningHome: toHumanSpecContextPlanningHome(root),
-      data: { candidates: [], archivedChanges: [], pendingFeedback: [], learnerRecords: [] },
+      data: { candidates: [], archivedChanges: [], pendingFeedback: [], learnerRecords: [], activeMilestone: null },
       issues: context.issues.map(toContextIssue),
       nextAction: 'Repair the listed project documents before choosing the next roadmap slice.',
     });
@@ -248,6 +253,8 @@ async function next(root: ResolvedOpenSpecRoot): Promise<HumanSpecContextResult<
       archivedChanges: resolved.archivedChangeNames,
       pendingFeedback: resolved.pendingFeedback,
       learnerRecords: resolved.learnerRecords,
+      activeMilestone: resolved.activeMilestone,
+      ...(resolved.emptyReason ? { emptyReason: resolved.emptyReason } : {}),
     },
     issues: resolved.issues.map(toContextIssue),
     ...(nextActionForContext(resolved) ? { nextAction: nextActionForContext(resolved) } : {}),
@@ -317,7 +324,12 @@ function feedbackPlanResult(
 async function feedbackPlan(root: ResolvedOpenSpecRoot, options: ChangeOptions): Promise<HumanSpecContextResult<Record<string, unknown>>> {
   const changeName = ensureChangeName(options.change);
   const archivedPath = await resolveCanonicalArchive(root, changeName);
-  const plan = await planArchiveFeedback({ projectRoot: root.path, changeName, archivedPath });
+  const plan = await planArchiveFeedback({
+    projectRoot: root.path,
+    changeName,
+    archivedPath,
+    ...parseAdaptivePlanInput(options.adaptive),
+  });
   return feedbackPlanResult('feedback-plan', root, plan, { plan, archivedPath });
 }
 
@@ -339,10 +351,46 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+function parseAdaptivePlanInput(value: string | undefined): Pick<ArchiveFeedbackPlanInput, 'milestone' | 'candidate' | 'candidateDisposition' | 'evidenceReferences'> {
+  if (!value) return {};
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    throw new HumanSpecContextCommandError('invalid_input', '--adaptive must be valid JSON.', 'error');
+  }
+  if (!isRecord(parsed)) {
+    throw new HumanSpecContextCommandError('invalid_input', '--adaptive must be a JSON object.', 'error');
+  }
+  const candidateDisposition = parsed.candidateDisposition;
+  if (candidateDisposition !== undefined && !['confirmed', 'rejected', 'not-proposed'].includes(String(candidateDisposition))) {
+    throw new HumanSpecContextCommandError('invalid_input', '--adaptive candidateDisposition must be confirmed, rejected, or not-proposed.', 'error');
+  }
+  const milestone = parsed.milestone;
+  if (milestone !== undefined && (!isRecord(milestone) || typeof milestone.identity !== 'string' || typeof milestone.status !== 'string')) {
+    throw new HumanSpecContextCommandError('invalid_input', '--adaptive milestone requires string identity and status values.', 'error');
+  }
+  const candidate = parsed.candidate;
+  if (candidate !== undefined && (!isRecord(candidate) || typeof candidate.changeName !== 'string' || typeof candidate.learningFocus !== 'string')) {
+    throw new HumanSpecContextCommandError('invalid_input', '--adaptive candidate requires string changeName and learningFocus values.', 'error');
+  }
+  if (parsed.evidenceReferences !== undefined && (!Array.isArray(parsed.evidenceReferences) || !parsed.evidenceReferences.every((reference) => typeof reference === 'string'))) {
+    throw new HumanSpecContextCommandError('invalid_input', '--adaptive evidenceReferences must be an array of strings.', 'error');
+  }
+  return {
+    ...(milestone ? { milestone: milestone as unknown as ArchiveFeedbackPlanInput['milestone'] } : {}),
+    ...(candidate ? { candidate: candidate as unknown as ArchiveFeedbackPlanInput['candidate'] } : {}),
+    ...(candidateDisposition ? { candidateDisposition: candidateDisposition as ArchiveFeedbackPlanInput['candidateDisposition'] } : {}),
+    ...(parsed.evidenceReferences ? { evidenceReferences: parsed.evidenceReferences as string[] } : {}),
+  };
+}
+
 function isReadyFeedbackPlan(value: Record<string, unknown>): boolean {
   if (value.status !== 'ready' || value.ready !== true || value.alreadyApplied !== false
     || typeof value.changeName !== 'string' || value.changeName.trim() === ''
     || typeof value.planningHome !== 'string' || value.planningHome.trim() === ''
+    || !['confirmed', 'rejected', 'not-proposed'].includes(String(value.candidateStatus))
+    || !Array.isArray(value.evidenceReferences)
     || !isRecord(value.documents) || !Array.isArray(value.issues)) {
     return false;
   }
@@ -439,7 +487,10 @@ async function feedbackApply(root: ResolvedOpenSpecRoot, options: ApplyOptions):
       nextAction: 'Obtain explicit learner confirmation, then rerun feedback-apply with --yes.',
     });
   }
-  const result = await applyArchiveFeedback(plan, { confirmed: true });
+  const result = await applyArchiveFeedback(plan, {
+    confirmed: true,
+    ...(options.rejectCandidate ? { candidateDisposition: 'rejected' } : {}),
+  });
   return createHumanSpecContextResult({
     operation: 'feedback-apply',
     status: result.status,
@@ -497,14 +548,16 @@ export function registerHumanSpecContextCommand(program: Command): void {
   addRootOptions(context
     .command('feedback-plan')
     .description('Create a feedback plan from canonical archived evidence')
-    .option('--change <name>', 'Archived change name'))
+    .option('--change <name>', 'Archived change name')
+    .option('--adaptive <json>', 'Structured learner-confirmed milestone and candidate proposal JSON'))
     .action(async (options: ChangeOptions) => executeOperation('feedback-plan', options, (root) => feedbackPlan(root, options)));
 
   addRootOptions(context
     .command('feedback-apply')
     .description('Apply a confirmed feedback plan')
     .option('--plan <path|->', 'Feedback-plan JSON file, or - for standard input')
-    .option('--yes', 'Confirm that the learner explicitly approved this plan'))
+    .option('--yes', 'Confirm that the learner explicitly approved this plan')
+    .option('--reject-candidate', 'Apply confirmed archive, milestone, and learner effects while excluding the candidate'))
     .action(async (options: ApplyOptions) => executeOperation('feedback-apply', options, (root) => feedbackApply(root, options)));
 
   addRootOptions(context
