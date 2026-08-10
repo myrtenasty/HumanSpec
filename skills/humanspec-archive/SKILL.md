@@ -15,7 +15,7 @@ This workflow gates a normal archive on software and learning evidence, reuses
 the canonical OpenSpec archive operation, previews every project-document
 feedback record, and never creates the next change.
 
-**Store selection:** If the user names a store (a store is a standalone OpenSpec repo registered on this machine) or the work lives in one, run `openspec store list --json` to discover registered store ids, then pass `--store <id>` on the commands that read or write specs and changes (`new change`, `status`, `instructions`, `list`, `show`, `validate`, `archive`, `doctor`, `context`, `view`). Other commands do not take the flag. Hints printed by commands already carry the flag; keep it on follow-ups. Without a store, commands act on the nearest local `openspec/` root.
+**Store selection:** If the user names a store (a store is a standalone OpenSpec repo registered on this machine) or the work lives in one, run `openspec store list --json` to discover registered store ids, then pass `--store <id>` on the commands that read or write specs and changes (`new change`, `status`, `instructions`, `list`, `show`, `validate`, `archive`, `doctor`, `context`, `view`, `humanspec context inspect`, `humanspec context next`, `humanspec context feedback-plan`, `humanspec context feedback-apply`, `humanspec context feedback-reconcile`). Other commands do not take the flag. Hints printed by commands already carry the flag; keep it on follow-ups. Without a store, commands act on the nearest local `openspec/` root.
 
 **Project context documents**
 
@@ -27,12 +27,14 @@ HumanSpec projects keep three living documents under `openspec/`:
 - `openspec/learner.md` — the learner's experience, learning goals, session
   time budget, hint preference, and knowledge gaps
 
-The registered document descriptors are the source of truth for every path and
-feedback anchor: `PROJECT_DOC_TEMPLATES`, `getProjectDocTemplate`,
-`resolveProjectDocPath`, `detectHumanSpecDocType`, and the registered
-archive-feedback descriptors. The roadmap keeps candidate slices under
-`# 候选切片` as `- [ ] slice: <change-name> — <learning focus>`; archive
-creates `# 已归档切片` records as `- [x] archived: <change-name> — <outcome>
+Before any workflow needs project context, run
+`openspec humanspec context inspect --json` (and preserve a selected
+`--store <id>`). Its versioned envelope is the public source of truth: read
+`planningHome`, then each `data.documents` entry's logical id, resolved
+path, classification, marker/template version, template, and issues. The
+roadmap keeps candidate slices under `# 候选切片` as
+`- [ ] slice: <change-name> — <learning focus>`; archive creates
+`# 已归档切片` records as `- [x] archived: <change-name> — <outcome>
 (feedback: pending|complete)`. Learner feedback uses only the registered
 `gap:`, `mastered:`, and `review:` records in their named sections.
 
@@ -92,16 +94,13 @@ reflection sections.
    change path and read its archived `learning.md`; do not select an active
    change or invoke canonical archive again.
 
-   Resolve `project`, `roadmap`, and `learner` only through the named
-   project-document registry (`PROJECT_DOC_TEMPLATES`,
-   `getProjectDocTemplate`, `resolveProjectDocPath`, and
-   `detectHumanSpecDocType`). Build every path with `path.join()` or
-   `path.resolve()`, including Windows drive-letter roots. Validate the
-   registered frontmatter, every required heading, the candidate-slice grammar,
-   the archived-record grammar, and the learner record sections. A missing,
-   unreadable, malformed, unmarked, duplicated, or ambiguous anchor is an
-   exact blocker: report its logical document id, resolved path, line/heading,
-   and one repair action. Do not guess a sibling file or write any document.
+   Run `openspec humanspec context inspect --json` with the same selected-root
+   or store flags. Its versioned envelope is the public source of truth for the
+   planning home and registered project, roadmap, and learner targets,
+   classifications, template versions, and parse issues. A missing, unreadable,
+   malformed, unmarked, duplicated, or ambiguous document is an exact blocker:
+   report its logical id, resolved path, issue, and one repair action. Do not
+   guess a sibling file or write any document.
 
 2. **Apply the normal verification and learning gates**
 
@@ -123,29 +122,12 @@ reflection sections.
    topic. It still uses the canonical archive operation and still requires a
    separate feedback preview confirmation.
 
-3. **Build and show the archive/feedback preview without writing**
+3. **Keep feedback planning separate from the archive gate**
 
-   Use the project-document feedback planner to produce one in-memory plan.
-   Resolve the exact roadmap candidate by exact change name; remove only that
-   line, leave unrelated candidates untouched, and create or reuse the named
-   `# 已归档切片` section with exactly one deterministic record:
-
-   ```
-   - [x] archived: <change-name> — <outcome> (feedback: pending|complete)
-   ```
-
-   Propose learner `gap:`, `mastered:`, and `review:` records only from
-   explicit learner evidence and the latest verification record. normalize
-   topics for duplicate detection, preserve their original wording, and never
-   rewrite `开始前`, `卡住时的记录`, or `完成后`. Show the resolved path,
-   exact old/new lines, duplicate/already-applied records, conflicts, line
-   ending style, and every preserved unrelated section for both documents.
-
-   Confirmation is separate at both decision points: first confirm the
-   permitted archive, then after canonical archive succeeds show the final
-   roadmap and learner feedback preview and ask for explicit confirmation.
-   A rejected preview leaves the affected document unchanged and keeps the
-   feedback loop pending; it is not a completed learning outcome.
+   First obtain the learner's explicit confirmation for the normal or forced
+   archive gate. Do not draft a private feedback plan or rewrite a project
+   document before canonical archive succeeds. The archive result is the only
+   source of the archived evidence used by the public feedback plan.
 
 4. **Use the canonical archive operation exactly once**
 
@@ -164,33 +146,42 @@ reflection sections.
    do not touch roadmap or learner documents and do not claim feedback was
    archived. Do not rerun this operation during feedback reconciliation.
 
-5. **Apply confirmed feedback with an explicit pending state**
+5. **Create, confirm, and apply the public feedback plan**
 
-   Only after the canonical archive succeeds and the learner confirms the
-   feedback preview, use per-document atomic same-directory replacement in
-   this order:
+   Only after the canonical archive succeeds, run:
 
-   - write the roadmap archived record as `feedback: pending`;
-   - write only missing learner gap/mastered/review records;
-   - replace that exact roadmap record's state with `feedback: complete`.
+   ```bash
+   openspec humanspec context feedback-plan --change "<name>" --json
+   ```
 
-   Re-read each file before replacement and preserve its detected LF or CRLF
-   style. If any write fails, report the archived path, the exact document,
-   error, and `feedback: pending`; leave unrelated content unchanged and
-   provide the retry reconciliation action. A conflict, malformed structure,
-   duplicate record, or ambiguous anchor blocks that document rather than
-   overwriting learner-authored content.
+   Preserve selected-root or store flags and present the versioned result's
+   `data.plan` to the learner: it enumerates the exact bound document paths,
+   byte preconditions, proposed records, issues, and pending state. Ask for a
+   separate explicit learner confirmation. If it is declined or omitted, do not
+   apply the plan and do not describe feedback as complete. After confirmation,
+   save the complete plan envelope to a temporary file (or provide it on stdin)
+   and run:
+
+   ```bash
+   openspec humanspec context feedback-apply --plan <path|-> --yes --json
+   ```
+
+   Report its written and pending documents exactly. Do not implement direct
+   file replacement, recompute a plan, or bypass `--yes`.
 
 6. **Retry reconciliation without repeating archive**
 
-   A later archive-feedback attempt accepts the exact archived change/path,
-   re-reads its archived learning outcome and the registered project documents,
-   and applies only missing records. It recognizes matching `feedback: pending`
-   and `feedback: complete` records, reports already-applied records without
-   duplicating them, and surfaces conflicting edits. Reconciliation must never
-   rerun specification synchronization, move the change a second time, or
-   create a new planning artifact. Route `humanspec-next` to reconciliation
-   while any registered feedback remains pending.
+   If the public result reports pending feedback, run:
+
+   ```bash
+   openspec humanspec context feedback-reconcile --change "<name>" --json
+   ```
+
+   Preserve selected-root or store flags. This public operation reconstructs
+   feedback from canonical archived evidence, reports already-applied records
+   without duplicates, and must never rerun specification synchronization, move
+   the change a second time, or create a new planning artifact. Route
+   `humanspec-next` to reconciliation while feedback remains pending.
 
 7. **Keep the next action explicit and singular**
 

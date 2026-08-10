@@ -15,7 +15,7 @@ feedback reconciliation. Read the registered project documents and OpenSpec
 JSON outputs, make uncertainty visible, and report one bounded handoff while
 preserving the learner's ownership of implementation and learning evidence.
 
-**Store selection:** If the user names a store (a store is a standalone OpenSpec repo registered on this machine) or the work lives in one, run `openspec store list --json` to discover registered store ids, then pass `--store <id>` on the commands that read or write specs and changes (`new change`, `status`, `instructions`, `list`, `show`, `validate`, `archive`, `doctor`, `context`, `view`). Other commands do not take the flag. Hints printed by commands already carry the flag; keep it on follow-ups. Without a store, commands act on the nearest local `openspec/` root.
+**Store selection:** If the user names a store (a store is a standalone OpenSpec repo registered on this machine) or the work lives in one, run `openspec store list --json` to discover registered store ids, then pass `--store <id>` on the commands that read or write specs and changes (`new change`, `status`, `instructions`, `list`, `show`, `validate`, `archive`, `doctor`, `context`, `view`, `humanspec context inspect`, `humanspec context next`, `humanspec context feedback-plan`, `humanspec context feedback-apply`, `humanspec context feedback-reconcile`). Other commands do not take the flag. Hints printed by commands already carry the flag; keep it on follow-ups. Without a store, commands act on the nearest local `openspec/` root.
 
 **Project context documents**
 
@@ -27,12 +27,14 @@ HumanSpec projects keep three living documents under `openspec/`:
 - `openspec/learner.md` — the learner's experience, learning goals, session
   time budget, hint preference, and knowledge gaps
 
-The registered document descriptors are the source of truth for every path and
-feedback anchor: `PROJECT_DOC_TEMPLATES`, `getProjectDocTemplate`,
-`resolveProjectDocPath`, `detectHumanSpecDocType`, and the registered
-archive-feedback descriptors. The roadmap keeps candidate slices under
-`# 候选切片` as `- [ ] slice: <change-name> — <learning focus>`; archive
-creates `# 已归档切片` records as `- [x] archived: <change-name> — <outcome>
+Before any workflow needs project context, run
+`openspec humanspec context inspect --json` (and preserve a selected
+`--store <id>`). Its versioned envelope is the public source of truth: read
+`planningHome`, then each `data.documents` entry's logical id, resolved
+path, classification, marker/template version, template, and issues. The
+roadmap keeps candidate slices under `# 候选切片` as
+`- [ ] slice: <change-name> — <learning focus>`; archive creates
+`# 已归档切片` records as `- [x] archived: <change-name> — <outcome>
 (feedback: pending|complete)`. Learner feedback uses only the registered
 `gap:`, `mastered:`, and `review:` records in their named sections.
 
@@ -64,19 +66,16 @@ adaptive archive feedback.
 **Steps**
 
 1. **Resolve the selected planning root and project context first**: follow the
-   store-selection rules above. Use the root and planning-home values returned
-   by the CLI, and resolve the three registered HumanSpec document destinations
-   through `PROJECT_DOC_TEMPLATES`, `getProjectDocTemplate`,
-   `resolveProjectDocPath`, and `detectHumanSpecDocType`. Build paths with
-   `path.join()` or `path.resolve()`; never concatenate separators or
-   infer a second document location. Read the registered `project`,
-   `roadmap`, and `learner` documents and classify each as valid
-   HumanSpec, missing, malformed/invalid, or unmarked user content. A marker
-   alone is not enough: check the registered frontmatter, required headings,
-   and parseable roadmap and learner records. For the no-active-change route,
-   use the registered `resolveNextRoadmapContext` helper so pending feedback,
-   archived-slice exclusion, and learner records are resolved from the same
-   grammar as archive feedback.
+   store-selection rules above, then run
+   `openspec humanspec context inspect --json` with the same selected-root or
+   store flags. Its versioned envelope reports the planning home and every
+   registered document's resolved path, classification, marker/template version,
+   and parse issues. If inspection is ready, run
+   `openspec humanspec context next --json`. Its public result distinguishes
+   `blocked`, `reconciliation`, `ready`, and `empty`, and returns the
+   parsed candidates, archived changes, pending feedback, and learner records
+   used for that decision. Do not reconstruct those results with package-internal
+   helpers or a directory scan.
 
    If any document is missing, malformed, unmarked, or unresolved, stop before
    selecting a change. Report the affected logical document id and resolved
@@ -127,20 +126,19 @@ adaptive archive feedback.
 
 4. **Resolve pending feedback, no-change, and ambiguous states without guessing**:
 
-   - With no active change, first read the registered `# 已归档切片` records
-     and call `resolveNextRoadmapContext` after reading the documents. If any
-     exact record says `feedback: pending`,
-     select only that archived outcome, report its path and pending document,
-     and hand off to `/humanspec-archive` for reconciliation. Do not select
+   - With no active change, use the `reconciliation` result from
+     `openspec humanspec context next --json` to identify the pending archived
+     change. Run `openspec humanspec context feedback-reconcile --change "<name>" --json`
+     for that one change, preserving selected-root or store flags. Do not select
      a roadmap candidate or re-propose the archived change until reconciliation
      is complete.
-   - Otherwise read the roadmap's parseable candidate slices and learner
-     context, exclude every change name already present in an archived record,
-     name one fitting remaining slice, explain its fit using the current
-     milestone, `mastered:`, `gap:`, and `review:` records, and hand off
-     to `/humanspec-propose`. Preserve propose's explicit confirmation gate:
-     never run `openspec new change`, create a change directory, or create
-     artifacts from this route without that confirmation.
+   - For a `ready` result, use only its returned parseable candidate slices,
+     archived-change exclusion, and learner records. Name one fitting remaining
+     slice, explain its fit using the current milestone, `mastered:`,
+     `gap:`, and `review:` records, and hand off to `/humanspec-propose`.
+     Preserve propose's explicit confirmation gate: never run
+     `openspec new change`, create a change directory, or create artifacts
+     from this route without that confirmation.
    - With multiple resumable changes, show each name, planning progress, first
      unresolved state, and last known evidence. Ask the learner to choose
      exactly one of continue, pause, or return to the roadmap. Never choose the

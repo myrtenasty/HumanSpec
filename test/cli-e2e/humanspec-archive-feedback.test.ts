@@ -79,7 +79,7 @@ describe('HumanSpec archive-feedback journeys', () => {
       },
     });
     expect(plan.status).toBe('ready');
-    const applied = await applyArchiveFeedback(plan);
+    const applied = await applyArchiveFeedback(plan, { confirmed: true });
     expect(applied.status).toBe('complete');
     expect((await fs.readFile(paths.roadmap, 'utf8')).match(new RegExp(`archived: ${changeName} .*feedback: complete`))).toHaveLength(1);
     const learner = await fs.readFile(paths.learner, 'utf8');

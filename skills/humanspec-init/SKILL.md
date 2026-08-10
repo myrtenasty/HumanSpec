@@ -15,7 +15,7 @@ conversation that creates or safely reviews project.md, roadmap.md, and
 learner.md under the project's openspec/ directory. Keep implementation
 ownership with the learner and keep initialization project-local.
 
-**Store selection:** If the user names a store (a store is a standalone OpenSpec repo registered on this machine) or the work lives in one, run `openspec store list --json` to discover registered store ids, then pass `--store <id>` on the commands that read or write specs and changes (`new change`, `status`, `instructions`, `list`, `show`, `validate`, `archive`, `doctor`, `context`, `view`). Other commands do not take the flag. Hints printed by commands already carry the flag; keep it on follow-ups. Without a store, commands act on the nearest local `openspec/` root.
+**Store selection:** If the user names a store (a store is a standalone OpenSpec repo registered on this machine) or the work lives in one, run `openspec store list --json` to discover registered store ids, then pass `--store <id>` on the commands that read or write specs and changes (`new change`, `status`, `instructions`, `list`, `show`, `validate`, `archive`, `doctor`, `context`, `view`, `humanspec context inspect`, `humanspec context next`, `humanspec context feedback-plan`, `humanspec context feedback-apply`, `humanspec context feedback-reconcile`). Other commands do not take the flag. Hints printed by commands already carry the flag; keep it on follow-ups. Without a store, commands act on the nearest local `openspec/` root.
 
 **Project context documents**
 
@@ -27,12 +27,14 @@ HumanSpec projects keep three living documents under `openspec/`:
 - `openspec/learner.md` — the learner's experience, learning goals, session
   time budget, hint preference, and knowledge gaps
 
-The registered document descriptors are the source of truth for every path and
-feedback anchor: `PROJECT_DOC_TEMPLATES`, `getProjectDocTemplate`,
-`resolveProjectDocPath`, `detectHumanSpecDocType`, and the registered
-archive-feedback descriptors. The roadmap keeps candidate slices under
-`# 候选切片` as `- [ ] slice: <change-name> — <learning focus>`; archive
-creates `# 已归档切片` records as `- [x] archived: <change-name> — <outcome>
+Before any workflow needs project context, run
+`openspec humanspec context inspect --json` (and preserve a selected
+`--store <id>`). Its versioned envelope is the public source of truth: read
+`planningHome`, then each `data.documents` entry's logical id, resolved
+path, classification, marker/template version, template, and issues. The
+roadmap keeps candidate slices under `# 候选切片` as
+`- [ ] slice: <change-name> — <learning focus>`; archive creates
+`# 已归档切片` records as `- [x] archived: <change-name> — <outcome>
 (feedback: pending|complete)`. Learner feedback uses only the registered
 `gap:`, `mastered:`, and `review:` records in their named sections.
 
@@ -67,12 +69,11 @@ project context; it does not create an implementation change.
 
 **Registered documents and required structure**
 
-Use the existing named HumanSpec project-document registry
-(`PROJECT_DOC_TEMPLATES`, `getProjectDocTemplate`,
-`resolveProjectDocPath`, and `detectHumanSpecDocType`) as the source of
-truth. Resolve each destination from the current project root with the
-platform-aware path helpers (`path.join()`/`path.resolve()`) and use only
-these registered destinations:
+Run `openspec humanspec context inspect --json` before drafting or writing.
+Use its versioned `data.documents` entries as the public source of truth for
+each logical document's resolved target path, current classification, and
+registered template. Preserve a selected `--store <id>`, and do not infer a
+second destination from the caller's current directory:
 
 - `openspec/project.md`: preserve the `humanspec-project` marker and the
   sections `# 项目目标`, `# 目标用户`, `# 技术栈`, `# 约束`, and

@@ -73,6 +73,13 @@ Update the canonical HumanSpec workflow templates/shared fragment and regenerate
 
 This migration remains compatible with the current generation pipeline; the later manifest change can move the registrations without changing rendered behavior.
 
+## 8. Bind public feedback plans to one selected planning home
+A `feedback-plan` result is the only accepted wire format for `feedback-apply`: callers provide the versioned envelope and its `data.plan`, rather than an ambient or partial plan. Plans carry the selected planning-home path, registered document identity, explicit target path, and SHA-256 digests calculated from the raw UTF-8 document bytes. Application resolves the requested local root or selected store again, rejects a different planning home, and checks every registered target and digest before the first write.
+
+`feedback-plan` and `feedback-reconcile` locate canonical archive evidence only when exactly one archive beneath the selected planning home's archive directory matches the requested change name; no match and ambiguous matches are structured errors. Context statuses `ready`, `empty`, `complete`, and `already-applied` exit zero. Blocked, reconciliation-required, pending, conflict, and error statuses exit non-zero while still emitting one parseable JSON envelope.
+
+Alternative considered: accept arbitrary plan fragments or infer an archive from the caller's current directory. Rejected because either option could apply feedback from the wrong project, store, or archived change.
+
 ## Risks / Trade-offs
 
 - [Public JSON becomes a compatibility surface] → Version the envelope, test field presence and status semantics, and keep domain internals behind a mapper.

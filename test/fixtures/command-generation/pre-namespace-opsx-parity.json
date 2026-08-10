@@ -23,142 +23,142 @@
     "amazon-q": {
       "pathVectorSha256": "379aab748426d444e4755c6e5a9516194c4c3745c7cb55ed6cb9ba60c7d9260d",
       "invocationVectorSha256": "801742864be19f0363688e5a4d3d99d6b4894f0b7f94ec273537eae76f188d85",
-      "fileContentVectorSha256": "497612990115f81817d0f5cdfe73f95fbf8058bd686b00cf91d3bb3f410e3339"
+      "fileContentVectorSha256": "140667a69f4e4523d3449979a3149a41aff56283fe3ace48bd98421ee674aca3"
     },
     "antigravity": {
       "pathVectorSha256": "76d99047b94d8724ef122b472426828c818249662d6665629d8c1d0422d59461",
       "invocationVectorSha256": "8e4bebfd967401e44d6943767e8bae9aa5fad055921473130f5bbe18725ec479",
-      "fileContentVectorSha256": "f74080fd79bf14ef969117d65343be6c94e6a5019e292cbf9ecfc2ca701b69b3"
+      "fileContentVectorSha256": "c791f70a3d0a9523a0f11a88c87b95dff03f15cca24152bffce8a00c08f1331d"
     },
     "auggie": {
       "pathVectorSha256": "c3cf796be05712bc268afdabe301774f3c1c94e8c9d0e4dafc2a39037e84a18c",
       "invocationVectorSha256": "8e4bebfd967401e44d6943767e8bae9aa5fad055921473130f5bbe18725ec479",
-      "fileContentVectorSha256": "0d999ac0472a238409adcb484226fdcbea4a53286016a0d6912b05ee0d76f0f8"
+      "fileContentVectorSha256": "d69a5588c605d8433961d185a18a9e4ad368b6a6d62e1f6522df7b5c6a9a5d45"
     },
     "bob": {
       "pathVectorSha256": "97f607da83802c50007f4dc3ca3a7c7f91829fe97858cd192b63f3589295531a",
       "invocationVectorSha256": "8e4bebfd967401e44d6943767e8bae9aa5fad055921473130f5bbe18725ec479",
-      "fileContentVectorSha256": "0d999ac0472a238409adcb484226fdcbea4a53286016a0d6912b05ee0d76f0f8"
+      "fileContentVectorSha256": "d69a5588c605d8433961d185a18a9e4ad368b6a6d62e1f6522df7b5c6a9a5d45"
     },
     "claude": {
       "pathVectorSha256": "00fe816f836e480156c4268cce763bdb9edbf65b331989cf54cd481b2b11d138",
       "invocationVectorSha256": "c5f7ad86871cc40544c2761a9ed60836041850d3024c1b917d9bff1a4dbc832f",
-      "fileContentVectorSha256": "963dd2f2e402f6ddc463847719ea8d7eced4905b19ff8b79ee3a043cd3c54526"
+      "fileContentVectorSha256": "fefa4549a8ecd5d825cf55a964e72618c859c3ce0a1a500a6f8cb03c27beae73"
     },
     "cline": {
       "pathVectorSha256": "defc42e9718e979950830b1cd1fe6cce7b1de0420fe61b3fb7f6249e3b1f0fb4",
       "invocationVectorSha256": "8e4bebfd967401e44d6943767e8bae9aa5fad055921473130f5bbe18725ec479",
-      "fileContentVectorSha256": "9580df6f9a439d7e85a47a78918fef2030dc394c882ff4aec394410122bc5ae3"
+      "fileContentVectorSha256": "dfd3fc307402d53ad7627d81e6579d9b4d99205a45cb5850378b0b24b16339f2"
     },
     "codebuddy": {
       "pathVectorSha256": "a44b9537f4adcbb39910930b2c5436bf7316e689804ae4bdda1e1918b451269e",
       "invocationVectorSha256": "c5f7ad86871cc40544c2761a9ed60836041850d3024c1b917d9bff1a4dbc832f",
-      "fileContentVectorSha256": "a1e464b462367ba721a65bfd791de6a00c6a59bba85b4ba781666d367c69a1d2"
+      "fileContentVectorSha256": "52b630ad684a68780c181c5fe9a59ebde9d26471f6ee1bec6ad7e88c173b924a"
     },
     "continue": {
       "pathVectorSha256": "2ad344c4979f984c116a78e3248988e4a06792e88501c8b0b427bbc15de793ab",
       "invocationVectorSha256": "8e4bebfd967401e44d6943767e8bae9aa5fad055921473130f5bbe18725ec479",
-      "fileContentVectorSha256": "9884692a7def4f5e67c363baec48e699864636eaacd994854794a35938f69636"
+      "fileContentVectorSha256": "89379bed972b957822941c7a944d3bab6494e65b27d1925c0054624cb7e396a2"
     },
     "costrict": {
       "pathVectorSha256": "d7b83d469ed8180d3bafb258ca49ef2ce6e03f3a85287349b920de41b62a948b",
       "invocationVectorSha256": "8e4bebfd967401e44d6943767e8bae9aa5fad055921473130f5bbe18725ec479",
-      "fileContentVectorSha256": "0d999ac0472a238409adcb484226fdcbea4a53286016a0d6912b05ee0d76f0f8"
+      "fileContentVectorSha256": "d69a5588c605d8433961d185a18a9e4ad368b6a6d62e1f6522df7b5c6a9a5d45"
     },
     "crush": {
       "pathVectorSha256": "cc9ab727e91fc0a85905248d6704cf31feb961cc9f6953d37ce39694ff50642b",
       "invocationVectorSha256": "c5f7ad86871cc40544c2761a9ed60836041850d3024c1b917d9bff1a4dbc832f",
-      "fileContentVectorSha256": "36b260191436fd5c18f62efb78652475f853782e3d7b7859b95c311835225393"
+      "fileContentVectorSha256": "51b34572c0c1a2a47146f598e9da29396a748f2537e6bd64a4e4d22f29fbc6dd"
     },
     "cursor": {
       "pathVectorSha256": "608088de9996d8d2f638ea5aa2d8127e03fef1d3e591dabfa62c1ee45761e148",
       "invocationVectorSha256": "8e4bebfd967401e44d6943767e8bae9aa5fad055921473130f5bbe18725ec479",
-      "fileContentVectorSha256": "5013946e036b90b712b23776a8101f1eea718934f574a01aecce47304df04cf6"
+      "fileContentVectorSha256": "c8fdee862f054e9171d4bedb14a4c40bde9238a2467a3925e41165209192447b"
     },
     "devin": {
       "pathVectorSha256": "6ecb6548b2d03268ba8e4050d8e35622efb9e0a246ff60af82a628f79d52249a",
       "invocationVectorSha256": "8e4bebfd967401e44d6943767e8bae9aa5fad055921473130f5bbe18725ec479",
-      "fileContentVectorSha256": "926e3a0e0539f7d0d99553d4edaa2436af7678b4d580c19ff34c320b621c0ff3"
+      "fileContentVectorSha256": "60e34aeefa3250989ed13617a97c907f69bd15bd17159398ee372c8ecff612df"
     },
     "factory": {
       "pathVectorSha256": "917a94a2c79817d67444f728f74dc0195988f092133dd6776d687f39e8d8012e",
       "invocationVectorSha256": "8e4bebfd967401e44d6943767e8bae9aa5fad055921473130f5bbe18725ec479",
-      "fileContentVectorSha256": "0d999ac0472a238409adcb484226fdcbea4a53286016a0d6912b05ee0d76f0f8"
+      "fileContentVectorSha256": "d69a5588c605d8433961d185a18a9e4ad368b6a6d62e1f6522df7b5c6a9a5d45"
     },
     "gemini": {
       "pathVectorSha256": "ce00420b4fe5b7cb2e6ab579ece6648f284c6cac6f871fa9ceb07ac5200d1fb8",
       "invocationVectorSha256": "c5f7ad86871cc40544c2761a9ed60836041850d3024c1b917d9bff1a4dbc832f",
-      "fileContentVectorSha256": "b08276271e02b8b99b6e6512914697f99edcfab2ddbaab37c0ba1cf79abea4f5"
+      "fileContentVectorSha256": "60ed45dd893d69e60c0806d1116c2133bfb01a3d6b6129f587c9ddf30fd4c3d4"
     },
     "github-copilot": {
       "pathVectorSha256": "94963cf68b28bdbcc1ee3270449f885463569e923cf9f1f26c7e8d30cc36f2e3",
       "invocationVectorSha256": "8e4bebfd967401e44d6943767e8bae9aa5fad055921473130f5bbe18725ec479",
-      "fileContentVectorSha256": "f74080fd79bf14ef969117d65343be6c94e6a5019e292cbf9ecfc2ca701b69b3"
+      "fileContentVectorSha256": "c791f70a3d0a9523a0f11a88c87b95dff03f15cca24152bffce8a00c08f1331d"
     },
     "iflow": {
       "pathVectorSha256": "8887aa86b5273129530da16093e9bc2af5cce0bfe954a008dd5fe814c2877a4b",
       "invocationVectorSha256": "8e4bebfd967401e44d6943767e8bae9aa5fad055921473130f5bbe18725ec479",
-      "fileContentVectorSha256": "5013946e036b90b712b23776a8101f1eea718934f574a01aecce47304df04cf6"
+      "fileContentVectorSha256": "c8fdee862f054e9171d4bedb14a4c40bde9238a2467a3925e41165209192447b"
     },
     "junie": {
       "pathVectorSha256": "a57aa5cc71fcd82d434aa098ab644f178e596f5b720092f3bfa8169eeca1ce9a",
       "invocationVectorSha256": "8e4bebfd967401e44d6943767e8bae9aa5fad055921473130f5bbe18725ec479",
-      "fileContentVectorSha256": "f74080fd79bf14ef969117d65343be6c94e6a5019e292cbf9ecfc2ca701b69b3"
+      "fileContentVectorSha256": "c791f70a3d0a9523a0f11a88c87b95dff03f15cca24152bffce8a00c08f1331d"
     },
     "kilocode": {
       "pathVectorSha256": "e4e4f495ba6864b836938a29423e14d13dd7f0c25185b56125b94528f5f29a23",
       "invocationVectorSha256": "8e4bebfd967401e44d6943767e8bae9aa5fad055921473130f5bbe18725ec479",
-      "fileContentVectorSha256": "ce81ffa9cb82f4d15a3ab45d5573bf8acd73fc52bb5a7d1b12a76c08af5aa895"
+      "fileContentVectorSha256": "aa1d99cf9b70dc6e4f1868c7db8f8c91e6fb46a1c849c4c5d20b1c535f3f77f4"
     },
     "kiro": {
       "pathVectorSha256": "59c2dbfded199b0c43d73856595f46dbc0b78fb07b23353c4f43fdc1aafd1b9c",
       "invocationVectorSha256": "8e4bebfd967401e44d6943767e8bae9aa5fad055921473130f5bbe18725ec479",
-      "fileContentVectorSha256": "f74080fd79bf14ef969117d65343be6c94e6a5019e292cbf9ecfc2ca701b69b3"
+      "fileContentVectorSha256": "c791f70a3d0a9523a0f11a88c87b95dff03f15cca24152bffce8a00c08f1331d"
     },
     "lingma": {
       "pathVectorSha256": "ff95f85d6d912fff30fc7d917c20c8dc203a4056039f064b3c8bbfdd98740529",
       "invocationVectorSha256": "c5f7ad86871cc40544c2761a9ed60836041850d3024c1b917d9bff1a4dbc832f",
-      "fileContentVectorSha256": "36b260191436fd5c18f62efb78652475f853782e3d7b7859b95c311835225393"
+      "fileContentVectorSha256": "51b34572c0c1a2a47146f598e9da29396a748f2537e6bd64a4e4d22f29fbc6dd"
     },
     "oh-my-pi": {
       "pathVectorSha256": "d2b5ef2506aa909ab145d47086e08f403f1338dd00b5accd6307df23c93c01d6",
       "invocationVectorSha256": "8e4bebfd967401e44d6943767e8bae9aa5fad055921473130f5bbe18725ec479",
-      "fileContentVectorSha256": "5ac934c1074c64f56502852d9744557b8e47752444fdfe51590b15dd097f256c"
+      "fileContentVectorSha256": "402e8a1723428e73c6d8a885797a66c0380cf8f055884416e527679ba9acdb09"
     },
     "opencode": {
       "pathVectorSha256": "1e05030fc20cdbdebdbaa85e847789cf17f4f2508c7d2b17fac41112546c222e",
       "invocationVectorSha256": "8e4bebfd967401e44d6943767e8bae9aa5fad055921473130f5bbe18725ec479",
-      "fileContentVectorSha256": "f74080fd79bf14ef969117d65343be6c94e6a5019e292cbf9ecfc2ca701b69b3"
+      "fileContentVectorSha256": "c791f70a3d0a9523a0f11a88c87b95dff03f15cca24152bffce8a00c08f1331d"
     },
     "pi": {
       "pathVectorSha256": "0f37f771ee289341c08f83d624978f75270e2a518374f3b6ef17c3bb9e707b9b",
       "invocationVectorSha256": "8e4bebfd967401e44d6943767e8bae9aa5fad055921473130f5bbe18725ec479",
-      "fileContentVectorSha256": "5ac934c1074c64f56502852d9744557b8e47752444fdfe51590b15dd097f256c"
+      "fileContentVectorSha256": "402e8a1723428e73c6d8a885797a66c0380cf8f055884416e527679ba9acdb09"
     },
     "qoder": {
       "pathVectorSha256": "d786e79b56198029ce105a02e6df3d3da7c5f19585ccb31184fc72472dcb9e39",
       "invocationVectorSha256": "c5f7ad86871cc40544c2761a9ed60836041850d3024c1b917d9bff1a4dbc832f",
-      "fileContentVectorSha256": "36b260191436fd5c18f62efb78652475f853782e3d7b7859b95c311835225393"
+      "fileContentVectorSha256": "51b34572c0c1a2a47146f598e9da29396a748f2537e6bd64a4e4d22f29fbc6dd"
     },
     "qwen": {
       "pathVectorSha256": "eece80b4512f5da70b1fb9dc79664d0866ab09fd82aef72da86a4ad31e003845",
       "invocationVectorSha256": "8e4bebfd967401e44d6943767e8bae9aa5fad055921473130f5bbe18725ec479",
-      "fileContentVectorSha256": "f74080fd79bf14ef969117d65343be6c94e6a5019e292cbf9ecfc2ca701b69b3"
+      "fileContentVectorSha256": "c791f70a3d0a9523a0f11a88c87b95dff03f15cca24152bffce8a00c08f1331d"
     },
     "roocode": {
       "pathVectorSha256": "675a31c516b2f2c090a531d15d39d976c0abca887fa68cc13df6b21a4cf3b9db",
       "invocationVectorSha256": "8e4bebfd967401e44d6943767e8bae9aa5fad055921473130f5bbe18725ec479",
-      "fileContentVectorSha256": "9580df6f9a439d7e85a47a78918fef2030dc394c882ff4aec394410122bc5ae3"
+      "fileContentVectorSha256": "dfd3fc307402d53ad7627d81e6579d9b4d99205a45cb5850378b0b24b16339f2"
     },
     "trae": {
       "pathVectorSha256": "48f2f78a7a87855892a0b4ce7282a336364e253065db3f560f8ae49a868115b0",
       "invocationVectorSha256": "8e4bebfd967401e44d6943767e8bae9aa5fad055921473130f5bbe18725ec479",
-      "fileContentVectorSha256": "d2140b9c6c23c5d4a4f8a10d99130af51fb27b652d7b338f90c16b7527c7e079"
+      "fileContentVectorSha256": "9dcb546bdc8285372fb34c685a212e319d0ed9363c199a53460c5b7e0e0e1c79"
     },
     "zcode": {
       "pathVectorSha256": "8ca65da601e162f827dbffa2254783a37754fc058dec57b607ebaf87fc43018e",
       "invocationVectorSha256": "c5f7ad86871cc40544c2761a9ed60836041850d3024c1b917d9bff1a4dbc832f",
-      "fileContentVectorSha256": "36b260191436fd5c18f62efb78652475f853782e3d7b7859b95c311835225393"
+      "fileContentVectorSha256": "51b34572c0c1a2a47146f598e9da29396a748f2537e6bd64a4e4d22f29fbc6dd"
     }
   }
 }

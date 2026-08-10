@@ -32,6 +32,7 @@ import { registerSchemaCommand } from '../commands/schema.js';
 import { registerStoreCommand } from '../commands/store.js';
 import { registerDoctorCommand } from '../commands/doctor.js';
 import { registerContextCommand } from '../commands/context.js';
+import { registerHumanSpecContextCommand } from '../commands/humanspec-context.js';
 import { registerWorksetCommand } from '../commands/workset.js';
 import {
   statusCommand,
@@ -425,6 +426,7 @@ registerSchemaCommand(program);
 registerStoreCommand(program);
 registerDoctorCommand(program);
 registerContextCommand(program);
+registerHumanSpecContextCommand(program);
 registerWorksetCommand(program);
 
 // Top-level validate command

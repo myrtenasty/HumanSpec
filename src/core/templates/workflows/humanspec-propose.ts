@@ -22,13 +22,12 @@ this workflow, implements the application and test code.`;
 
 const STEPS = `**Steps**
 
-1. **Resolve context before planning**: resolve the selected planning home and
-   read all three registered HumanSpec documents before asking for or drafting
-   a change. Use the existing project-document registry
-   (\`PROJECT_DOC_TEMPLATES\`, \`getProjectDocTemplate\`,
-   \`resolveProjectDocPath\`, and \`detectHumanSpecDocType\`) as the source of
-   truth. Resolve destinations with \`path.join()\` or \`path.resolve()\`; do
-   not hardcode separators or invent another \`project.md\`, \`roadmap.md\`, or
+1. **Resolve context before planning**: run
+   \`openspec humanspec context inspect --json\` with the selected-root or
+   store flags before asking for or drafting a change. Use its versioned
+   \`planningHome\` and \`data.documents\` entries as the public source of
+   truth for the three registered document targets, classifications, templates,
+   and issues; do not infer another \`project.md\`, \`roadmap.md\`, or
    \`learner.md\` destination.
 
    Classify each path as valid HumanSpec, missing, malformed/invalid, or

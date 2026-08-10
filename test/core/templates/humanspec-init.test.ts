@@ -93,13 +93,11 @@ describe('HumanSpec initialization workflow templates', () => {
     }
   });
 
-  it('uses the shared cross-platform path and marker protocol', () => {
+  it('uses the public inspection contract for registered paths and markers', () => {
     for (const [label, body] of bodies) {
-      expect(body, label).toContain('PROJECT_DOC_TEMPLATES');
-      expect(body, label).toContain('resolveProjectDocPath');
-      expect(body, label).toContain('detectHumanSpecDocType');
-      expect(body, label).toContain('path.join()');
-      expect(body, label).toContain('path.resolve()');
+      expect(body, label).toContain('openspec humanspec context inspect --json');
+      expect(body, label).toContain('data.documents');
+      expect(body, label).toContain('registered template');
       expect(body, label).toContain('invent alternate `.yaml`/`.yml` document destinations');
     }
   });

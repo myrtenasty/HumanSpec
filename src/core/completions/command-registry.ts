@@ -369,6 +369,58 @@ export const COMMAND_REGISTRY: CommandDefinition[] = [
     ],
   },
   {
+    name: 'humanspec',
+    description: 'Run HumanSpec project-context operations',
+    flags: [],
+    subcommands: [
+      {
+        name: 'context',
+        description: 'Inspect and update registered HumanSpec project documents',
+        flags: [],
+        subcommands: [
+          {
+            name: 'inspect',
+            description: 'Inspect registered templates and project-document state',
+            flags: [COMMON_FLAGS.json, COMMON_FLAGS.store],
+          },
+          {
+            name: 'next',
+            description: 'Resolve the next HumanSpec roadmap context',
+            flags: [COMMON_FLAGS.json, COMMON_FLAGS.store],
+          },
+          {
+            name: 'feedback-plan',
+            description: 'Create a feedback plan from canonical archived evidence',
+            flags: [
+              { name: 'change', description: 'Archived change name', takesValue: true },
+              COMMON_FLAGS.json,
+              COMMON_FLAGS.store,
+            ],
+          },
+          {
+            name: 'feedback-apply',
+            description: 'Apply a confirmed feedback plan',
+            flags: [
+              { name: 'plan', description: 'Feedback-plan JSON file, or - for standard input', takesValue: true },
+              { name: 'yes', description: 'Confirm that the learner explicitly approved this plan' },
+              COMMON_FLAGS.json,
+              COMMON_FLAGS.store,
+            ],
+          },
+          {
+            name: 'feedback-reconcile',
+            description: 'Resume a pending feedback operation from archived evidence',
+            flags: [
+              { name: 'change', description: 'Archived change name', takesValue: true },
+              COMMON_FLAGS.json,
+              COMMON_FLAGS.store,
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
     name: 'doctor',
     description: 'Report relationship health for the resolved OpenSpec root',
     flags: [

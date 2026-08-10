@@ -74,15 +74,13 @@ const STEPS = `**Steps**
 
 3. **Check context readiness before diagnosing**
 
-   Read the three registered HumanSpec project documents from the planning
-   home before giving task-specific guidance. Use the existing project-document
-   registry (\`PROJECT_DOC_TEMPLATES\`, \`getProjectDocTemplate\`,
-   \`resolveProjectDocPath\`, and \`detectHumanSpecDocType\`) and the existing
-   planning-home helpers as the source of truth. Resolve paths with
-   \`path.join()\` or \`path.resolve()\`; never concatenate path strings,
-   assume forward-slash separators, or invent another project, roadmap, or
-   learner destination. The selected change and every context file must remain
-   beneath the same reported \`planningHome.root\`.
+   Run \`openspec humanspec context inspect --json\` with the selected-root or
+   store flags before giving task-specific guidance. Use its versioned
+   \`planningHome\` and \`data.documents\` entries as the public source of
+   truth for readable registered document targets, classifications, templates,
+   and issues. Never infer another project, roadmap, or learner destination.
+   The selected change and every context file must remain beneath the same
+   reported planning home.
 
    Confirm that the project, roadmap, and learner documents are readable and
    valid, that the selected change is unique, that the learning artifact has a

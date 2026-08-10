@@ -38,6 +38,18 @@ const COMMAND_FACTORIES: Array<[string, () => { name: string; content: string }]
   ['humanspec-explore', getHumanspecExploreCommandTemplate],
 ];
 
+const FORBIDDEN_INTERNAL_CONTEXT_IDENTIFIERS = [
+  'PROJECT_DOC_TEMPLATES',
+  'getProjectDocTemplate',
+  'resolveProjectDocPath',
+  'detectHumanSpecDocType',
+  'readProjectDocumentFeedbackContext',
+  'resolveNextRoadmapContext',
+  'planArchiveFeedback',
+  'applyArchiveFeedback',
+  'reconcileArchiveFeedback',
+] as const;
+
 describe('HumanSpec workflow templates', () => {
   it('every skill template carries the shared human-implementation boundary', () => {
     for (const [id, factory] of SKILL_FACTORIES) {
@@ -76,6 +88,34 @@ describe('HumanSpec workflow templates', () => {
       expect(template.content, id).toContain('openspec/project.md');
       expect(template.content, id).toContain('openspec/roadmap.md');
       expect(template.content, id).toContain('openspec/learner.md');
+    }
+  });
+
+  it('uses only public context commands across every HumanSpec delivery surface', () => {
+    for (const [id, factory] of SKILL_FACTORIES) {
+      const body = factory().instructions;
+      expect(body, id).toContain('openspec humanspec context inspect --json');
+      for (const identifier of FORBIDDEN_INTERNAL_CONTEXT_IDENTIFIERS) {
+        expect(body, `${id}: ${identifier}`).not.toContain(identifier);
+      }
+    }
+    for (const [id, factory] of COMMAND_FACTORIES) {
+      const body = factory().content;
+      expect(body, id).toContain('openspec humanspec context inspect --json');
+      for (const identifier of FORBIDDEN_INTERNAL_CONTEXT_IDENTIFIERS) {
+        expect(body, `${id}: ${identifier}`).not.toContain(identifier);
+      }
+    }
+
+    for (const factory of [getHumanspecNextSkillTemplate, getHumanspecNextCommandTemplate]) {
+      expect(factory().instructions ?? factory().content).toContain('openspec humanspec context next --json');
+      expect(factory().instructions ?? factory().content).toContain('openspec humanspec context feedback-reconcile');
+    }
+    for (const factory of [getHumanspecArchiveSkillTemplate, getHumanspecArchiveCommandTemplate]) {
+      const body = factory().instructions ?? factory().content;
+      expect(body).toContain('openspec humanspec context feedback-plan');
+      expect(body).toContain('openspec humanspec context feedback-apply');
+      expect(body).toContain('openspec humanspec context feedback-reconcile');
     }
   });
 

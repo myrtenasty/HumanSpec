@@ -1,13 +1,16 @@
 import { describe, it, expect } from 'vitest';
 import { promises as fs } from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
+
+import { ensureCliBuilt, cliProjectRoot } from '../helpers/run-cli.js';
 
 import {
   PROJECT_DOC_TEMPLATES,
   PROJECT_DOC_TEMPLATES_DIR,
   extractFrontmatterBlock,
   detectHumanSpecDocType,
+  readProjectDocTemplateBytes,
   resolveProjectDocPath,
 } from '../../src/core/templates/project-docs.js';
 
@@ -33,6 +36,41 @@ describe('project context document templates', () => {
       const content = await fs.readFile(filePath, 'utf-8');
       expect(content.length, `${template.fileName} should not be empty`).toBeGreaterThan(0);
     }
+  });
+
+  it('keeps byte-identical source, dist, and runtime template assets', async () => {
+    await ensureCliBuilt();
+    const distModule = await import(pathToFileURL(path.join(
+      cliProjectRoot,
+      'dist',
+      'core',
+      'templates',
+      'project-docs.js'
+    )).href);
+    const sourceDir = getProjectDocsDir();
+    const distDir = path.join(cliProjectRoot, 'dist', 'core', 'templates', PROJECT_DOC_TEMPLATES_DIR);
+
+    for (const template of PROJECT_DOC_TEMPLATES) {
+      const source = await fs.readFile(path.join(sourceDir, template.fileName));
+      const built = await fs.readFile(path.join(distDir, template.fileName));
+      const sourceRuntime = await readProjectDocTemplateBytes(template.id);
+      const packagedRuntime = await distModule.readProjectDocTemplateBytes(template.id);
+      expect(built.equals(source), `${template.fileName} dist bytes`).toBe(true);
+      expect(sourceRuntime.equals(source), `${template.fileName} source runtime bytes`).toBe(true);
+      expect(packagedRuntime.equals(source), `${template.fileName} packaged runtime bytes`).toBe(true);
+
+      const content = source.toString('utf8');
+      expect(content).toContain(`type: ${template.markerType}`);
+      expect(content).toContain('version: 1');
+      expect(content).toContain('<!--');
+      expect(detectHumanSpecDocType(content.replace(/\n/g, '\r\n'))).toBe(template.id);
+    }
+
+    expect((await fs.readFile(path.join(sourceDir, 'roadmap.md'), 'utf8'))).toContain('slice: <change-name>');
+    const learner = await fs.readFile(path.join(sourceDir, 'learner.md'), 'utf8');
+    expect(learner).toContain('gap: <描述>');
+    expect(learner).toContain('mastered: <主题>');
+    expect(learner).toContain('review: <主题>');
   });
 
   it('every template frontmatter marker matches its registered marker', async () => {

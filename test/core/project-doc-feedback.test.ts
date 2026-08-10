@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
+import { createHash } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -183,12 +184,14 @@ describe('HumanSpec project-document feedback registry and planner', () => {
     expect(plan.status).toBe('ready');
 
     const failed = await applyArchiveFeedback(plan, {
+      confirmed: true,
       atomicWrite: async (filePath, content) => {
         if (filePath === paths.learner) throw new Error('simulated learner write failure');
         await fs.writeFile(filePath, content, 'utf8');
       },
     });
     expect(failed.status).toBe('pending');
+    expect(failed.writtenDocuments).toEqual(['roadmap']);
     expect(failed.pendingDocuments).toEqual(['learner']);
     expect((await fs.readFile(paths.roadmap, 'utf8')).match(/feedback: pending/g)).toHaveLength(1);
     expect((await fs.readFile(paths.roadmap, 'utf8'))).not.toBe(roadmapBefore);
@@ -200,6 +203,7 @@ describe('HumanSpec project-document feedback registry and planner', () => {
       evidence: { learningAssessment: 'learning complete', masteredTopics: ['Atomic feedback'] },
     });
     expect(reconciled.status).toBe('complete');
+    expect(reconciled.writtenDocuments).toEqual(['learner', 'roadmap']);
     expect(reconciled.pendingDocuments).toEqual([]);
     expect((await fs.readFile(paths.roadmap, 'utf8')).match(/feedback: complete/g)).toHaveLength(1);
     expect((await fs.readFile(paths.learner, 'utf8'))).toContain('- [ ] mastered: Atomic feedback');
@@ -229,6 +233,47 @@ describe('HumanSpec project-document feedback registry and planner', () => {
     expect(already.status).toBe('already-applied');
   });
 
+  it('fails closed and validates every bound document before the first write', async () => {
+    const { root, paths } = await projectFixture();
+    const plan = await planArchiveFeedback({
+      projectRoot: root,
+      changeName: 'preflight-change',
+      evidence: { learningAssessment: 'learning complete', masteredTopics: ['Preflight checks'] },
+    });
+    const roadmapPlan = plan.documents.roadmap!;
+    const learnerPlan = plan.documents.learner!;
+    expect(roadmapPlan.beforeSha256).toBe(createHash('sha256').update(await fs.readFile(paths.roadmap)).digest('hex'));
+    expect(learnerPlan.beforeSha256).toBe(createHash('sha256').update(await fs.readFile(paths.learner)).digest('hex'));
+
+    const beforeRoadmap = await fs.readFile(paths.roadmap, 'utf8');
+    const beforeLearner = await fs.readFile(paths.learner, 'utf8');
+    const omittedConfirmation = await applyArchiveFeedback(plan);
+    expect(omittedConfirmation.status).toBe('blocked');
+    expect(omittedConfirmation.issues.some((item) => item.code === 'confirmation-required')).toBe(true);
+    expect(await fs.readFile(paths.roadmap, 'utf8')).toBe(beforeRoadmap);
+    expect(await fs.readFile(paths.learner, 'utf8')).toBe(beforeLearner);
+
+    const changedPath = {
+      ...plan,
+      documents: {
+        ...plan.documents,
+        learner: { ...learnerPlan, path: path.join(root, 'outside-registered-target.md') },
+      },
+    };
+    const pathConflict = await applyArchiveFeedback(changedPath, { confirmed: true });
+    expect(pathConflict.status).toBe('conflict');
+    expect(pathConflict.writtenDocuments).toEqual([]);
+    expect(await fs.readFile(paths.roadmap, 'utf8')).toBe(beforeRoadmap);
+    expect(await fs.readFile(paths.learner, 'utf8')).toBe(beforeLearner);
+
+    await fs.appendFile(paths.learner, '\nLearner edit after preview.\n', 'utf8');
+    const staleConflict = await applyArchiveFeedback(plan, { confirmed: true });
+    expect(staleConflict.status).toBe('conflict');
+    expect(staleConflict.writtenDocuments).toEqual([]);
+    expect(await fs.readFile(paths.roadmap, 'utf8')).toBe(beforeRoadmap);
+    expect(await fs.readFile(paths.learner, 'utf8')).toContain('Learner edit after preview.');
+  });
+
   it('reports atomic failures and concurrent learner edits instead of overwriting them', async () => {
     const { root, paths } = await projectFixture();
     const plan = await planArchiveFeedback({
@@ -237,6 +282,7 @@ describe('HumanSpec project-document feedback registry and planner', () => {
       evidence: { learningAssessment: 'learning complete', masteredTopics: ['Failure handling'] },
     });
     const failed = await applyArchiveFeedback(plan, {
+      confirmed: true,
       atomicWrite: async () => { throw new Error('read-only'); },
     });
     expect(failed.status).toBe('pending');
@@ -250,14 +296,17 @@ describe('HumanSpec project-document feedback registry and planner', () => {
       evidence: { learningAssessment: 'learning complete', masteredTopics: ['Conflict handling'] },
     });
     await fs.appendFile(paths.learner, '\nLearner changed this while preview was open.\n');
-    const conflict = await applyArchiveFeedback(freshPlan);
+    const conflict = await applyArchiveFeedback(freshPlan, { confirmed: true });
     expect(conflict.status).toBe('conflict');
     expect(await fs.readFile(paths.learner, 'utf8')).toContain('Learner changed this');
   });
 
   it('uses path.join destinations and preserves CRLF documents on Windows-style roots', async () => {
     const root = path.win32.resolve('C:', 'workspace', 'learner');
-    expect(path.win32.join(root, 'openspec', 'roadmap.md')).toBe(path.win32.join(root, 'openspec', 'roadmap.md'));
+    const windowsPaths = resolveProjectDocumentPaths(root);
+    for (const template of PROJECT_DOC_TEMPLATES) {
+      expect(windowsPaths[template.id]).toBe(path.win32.join(root, 'openspec', template.fileName));
+    }
 
     const roadmap = (await fixture('roadmap')).replace(/\n/g, '\r\n');
     const analysis = analyzeProjectDocument('roadmap', roadmap, path.win32.join(root, 'openspec', 'roadmap.md'));
@@ -269,6 +318,10 @@ describe('HumanSpec project-document feedback registry and planner', () => {
       const content = await fs.readFile(fixtureProject.paths[id], 'utf8');
       await fs.writeFile(fixtureProject.paths[id], content.replace(/\n/g, '\r\n'), 'utf8');
     }
+    const unrelatedRoadmap = '\r\n## 保留的路线图笔记\r\nDo not rewrite this note.\r\n';
+    const unrelatedLearner = '\r\n## 保留的学习者笔记\r\nDo not rewrite this note.\r\n';
+    await fs.appendFile(fixtureProject.paths.roadmap, unrelatedRoadmap, 'utf8');
+    await fs.appendFile(fixtureProject.paths.learner, unrelatedLearner, 'utf8');
     const plan = await planArchiveFeedback({
       projectRoot: fixtureProject.root,
       changeName: 'crlf-change',
@@ -277,10 +330,21 @@ describe('HumanSpec project-document feedback registry and planner', () => {
     expect(plan.status).toBe('ready');
     expect(plan.documents.roadmap?.pendingContent).toContain('\r\n');
     expect(plan.documents.learner?.proposedContent).toContain('\r\n');
-    const applied = await applyArchiveFeedback(plan);
+    const applied = await applyArchiveFeedback(plan, { confirmed: true });
     expect(applied.status).toBe('complete');
     const writtenRoadmap = await fs.readFile(fixtureProject.paths.roadmap, 'utf8');
     expect(writtenRoadmap).toContain('\r\n');
     expect(writtenRoadmap.replace(/\r\n/g, '')).not.toContain('\n');
+    expect(writtenRoadmap).toContain(unrelatedRoadmap);
+    expect(await fs.readFile(fixtureProject.paths.learner, 'utf8')).toContain(unrelatedLearner);
+
+    const reconciled = await reconcileArchiveFeedback({
+      projectRoot: fixtureProject.root,
+      changeName: 'crlf-change',
+      evidence: { learningAssessment: 'learning complete', masteredTopics: ['CRLF safety'] },
+    });
+    expect(reconciled.status).toBe('already-applied');
+    expect(await fs.readFile(fixtureProject.paths.roadmap, 'utf8')).toContain(unrelatedRoadmap);
+    expect(await fs.readFile(fixtureProject.paths.learner, 'utf8')).toContain(unrelatedLearner);
   });
 });

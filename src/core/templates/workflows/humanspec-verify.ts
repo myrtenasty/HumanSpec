@@ -69,19 +69,15 @@ const STEPS = `**Steps**
 
    Read every concrete path returned under \`contextFiles\`; do not assume
    artifact names or reconstruct a contract from a directory name. Before
-   reviewing application or test evidence, resolve and read all three
-   registered HumanSpec project documents from \`planningHome.root\`:
-   \`project\`, \`roadmap\`, and \`learner\`. Use the existing
-   \`PROJECT_DOC_TEMPLATES\`, \`getProjectDocTemplate\`,
-   \`resolveProjectDocPath\`, and \`detectHumanSpecDocType\` helpers as the
-   source of truth, together with the existing planning-home helpers. Build
-   paths with \`path.join()\` or \`path.resolve()\`; never concatenate slash
-   separators or invent another project.md, roadmap.md, or learner.md path.
-   Confirm each document is readable, beneath the same reported planning-home
-   root, and a valid registered HumanSpec document. A missing, malformed,
-   unmarked, contradictory, or unreadable document is an exact context
-   blocker: ask the learner to select, repair, or complete it and do not
-   report the change as verified.
+   reviewing application or test evidence, run
+   \`openspec humanspec context inspect --json\` with the selected-root or
+   store flags. Use its versioned \`planningHome\` and \`data.documents\`
+   entries as the public source of truth for the registered project, roadmap,
+   and learner paths, classifications, templates, and issues. Confirm each
+   document is readable and valid beneath that planning home. A missing,
+   malformed, unmarked, contradictory, or unreadable document is an exact
+   context blocker: ask the learner to select, repair, or complete it and do
+   not report the change as verified.
 
 3. **Gate on learner-owned practice evidence**
 

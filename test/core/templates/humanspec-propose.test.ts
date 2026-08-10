@@ -49,9 +49,9 @@ describe('HumanSpec propose workflow templates', () => {
 
   it('guards context readiness and learner-owned context facts', () => {
     for (const [label, body] of bodies) {
-      expect(body, label).toContain('PROJECT_DOC_TEMPLATES');
-      expect(body, label).toContain('resolveProjectDocPath');
-      expect(body, label).toContain('detectHumanSpecDocType');
+      expect(body, label).toContain('openspec humanspec context inspect --json');
+      expect(body, label).toContain('data.documents');
+      expect(body, label).toContain('public source of truth');
       for (const state of [
         'valid HumanSpec',
         'missing',

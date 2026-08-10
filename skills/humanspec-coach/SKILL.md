@@ -15,7 +15,7 @@ completion evidence, project context, and learner-reported evidence. Inspect,
 explain, diagnose, and offer progressive hints, but never take ownership of
 application or test implementation.
 
-**Store selection:** If the user names a store (a store is a standalone OpenSpec repo registered on this machine) or the work lives in one, run `openspec store list --json` to discover registered store ids, then pass `--store <id>` on the commands that read or write specs and changes (`new change`, `status`, `instructions`, `list`, `show`, `validate`, `archive`, `doctor`, `context`, `view`). Other commands do not take the flag. Hints printed by commands already carry the flag; keep it on follow-ups. Without a store, commands act on the nearest local `openspec/` root.
+**Store selection:** If the user names a store (a store is a standalone OpenSpec repo registered on this machine) or the work lives in one, run `openspec store list --json` to discover registered store ids, then pass `--store <id>` on the commands that read or write specs and changes (`new change`, `status`, `instructions`, `list`, `show`, `validate`, `archive`, `doctor`, `context`, `view`, `humanspec context inspect`, `humanspec context next`, `humanspec context feedback-plan`, `humanspec context feedback-apply`, `humanspec context feedback-reconcile`). Other commands do not take the flag. Hints printed by commands already carry the flag; keep it on follow-ups. Without a store, commands act on the nearest local `openspec/` root.
 
 **Project context documents**
 
@@ -27,12 +27,14 @@ HumanSpec projects keep three living documents under `openspec/`:
 - `openspec/learner.md` — the learner's experience, learning goals, session
   time budget, hint preference, and knowledge gaps
 
-The registered document descriptors are the source of truth for every path and
-feedback anchor: `PROJECT_DOC_TEMPLATES`, `getProjectDocTemplate`,
-`resolveProjectDocPath`, `detectHumanSpecDocType`, and the registered
-archive-feedback descriptors. The roadmap keeps candidate slices under
-`# 候选切片` as `- [ ] slice: <change-name> — <learning focus>`; archive
-creates `# 已归档切片` records as `- [x] archived: <change-name> — <outcome>
+Before any workflow needs project context, run
+`openspec humanspec context inspect --json` (and preserve a selected
+`--store <id>`). Its versioned envelope is the public source of truth: read
+`planningHome`, then each `data.documents` entry's logical id, resolved
+path, classification, marker/template version, template, and issues. The
+roadmap keeps candidate slices under `# 候选切片` as
+`- [ ] slice: <change-name> — <learning focus>`; archive creates
+`# 已归档切片` records as `- [x] archived: <change-name> — <outcome>
 (feedback: pending|complete)`. Learner feedback uses only the registered
 `gap:`, `mastered:`, and `review:` records in their named sections.
 
@@ -111,15 +113,13 @@ explains, diagnoses, and hints while the learner writes the code.
 
 3. **Check context readiness before diagnosing**
 
-   Read the three registered HumanSpec project documents from the planning
-   home before giving task-specific guidance. Use the existing project-document
-   registry (`PROJECT_DOC_TEMPLATES`, `getProjectDocTemplate`,
-   `resolveProjectDocPath`, and `detectHumanSpecDocType`) and the existing
-   planning-home helpers as the source of truth. Resolve paths with
-   `path.join()` or `path.resolve()`; never concatenate path strings,
-   assume forward-slash separators, or invent another project, roadmap, or
-   learner destination. The selected change and every context file must remain
-   beneath the same reported `planningHome.root`.
+   Run `openspec humanspec context inspect --json` with the selected-root or
+   store flags before giving task-specific guidance. Use its versioned
+   `planningHome` and `data.documents` entries as the public source of
+   truth for readable registered document targets, classifications, templates,
+   and issues. Never infer another project, roadmap, or learner destination.
+   The selected change and every context file must remain beneath the same
+   reported planning home.
 
    Confirm that the project, roadmap, and learner documents are readable and
    valid, that the selected change is unique, that the learning artifact has a

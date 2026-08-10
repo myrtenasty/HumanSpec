@@ -1,4 +1,6 @@
-import path from 'path';
+import { promises as fs } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 /**
  * HumanSpec project context document registry.
@@ -217,6 +219,47 @@ export function getProjectDocTemplate(id: ProjectDocId): ProjectDocTemplate {
     throw new Error(`Unknown HumanSpec project document id: ${id}`);
   }
   return template;
+}
+
+/** A registered runtime asset was absent from the current package build. */
+export class ProjectDocTemplateAssetError extends Error {
+  readonly id: ProjectDocId;
+  readonly assetPath: string;
+
+  constructor(id: ProjectDocId, assetPath: string, cause?: unknown) {
+    super(`Registered HumanSpec ${id} template asset is unavailable at ${assetPath}.`);
+    this.name = 'ProjectDocTemplateAssetError';
+    this.id = id;
+    this.assetPath = assetPath;
+    if (cause !== undefined) {
+      (this as Error & { cause?: unknown }).cause = cause;
+    }
+  }
+}
+
+/**
+ * Resolves one explicitly registered template beside this runtime module.
+ * The build copies these named files to the matching dist directory; this
+ * deliberately never falls back to discovery or an unrelated source tree.
+ */
+export function resolveProjectDocTemplateAssetPath(id: ProjectDocId): string {
+  const moduleDirectory = path.dirname(fileURLToPath(import.meta.url));
+  return path.join(moduleDirectory, PROJECT_DOC_TEMPLATES_DIR, getProjectDocTemplate(id).fileName);
+}
+
+/** Reads the exact bytes of an explicitly registered template asset. */
+export async function readProjectDocTemplateBytes(id: ProjectDocId): Promise<Buffer> {
+  const assetPath = resolveProjectDocTemplateAssetPath(id);
+  try {
+    return await fs.readFile(assetPath);
+  } catch (error) {
+    throw new ProjectDocTemplateAssetError(id, assetPath, error);
+  }
+}
+
+/** Reads one explicitly registered UTF-8 project-document template. */
+export async function readProjectDocTemplate(id: ProjectDocId): Promise<string> {
+  return (await readProjectDocTemplateBytes(id)).toString('utf8');
 }
 
 /**

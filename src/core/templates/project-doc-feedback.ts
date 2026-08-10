@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 
@@ -18,7 +19,9 @@ export interface ProjectDocumentFeedbackIssue {
     | 'malformed'
     | 'duplicated'
     | 'ambiguous'
-    | 'conflict';
+    | 'conflict'
+    | 'confirmation-required'
+    | 'precondition';
   document: ProjectDocId;
   message: string;
   anchor?: string;
@@ -37,6 +40,8 @@ export interface ProjectDocumentFeedbackAnalysis {
   path: string;
   status: ProjectDocumentFeedbackStatus;
   content?: string;
+  /** SHA-256 of the exact UTF-8 bytes observed while reading the document. */
+  contentSha256?: string;
   lineEnding: '\n' | '\r\n';
   requiredHeadings: readonly ProjectDocSectionDescriptor[];
   issues: ProjectDocumentFeedbackIssue[];
@@ -134,8 +139,12 @@ export type ArchiveFeedbackPlanStatus = 'ready' | 'blocked' | 'already-applied';
 
 export interface ArchiveFeedbackDocumentPlan {
   id: ProjectDocId;
+  /** Explicit registered target path bound to the planning home. */
   path: string;
+  /** Exact document text observed while planning. */
   before: string;
+  /** SHA-256 of the exact UTF-8 bytes observed while planning. */
+  beforeSha256: string;
   /** Roadmap content after the first write, with feedback still pending. */
   pendingContent?: string;
   /** Roadmap content after learner feedback has been written. */
@@ -147,6 +156,8 @@ export interface ArchiveFeedbackDocumentPlan {
 
 export interface ArchiveFeedbackPlan {
   changeName: string;
+  /** The selected project/store root the plan is permitted to mutate. */
+  planningHome: string;
   status: ArchiveFeedbackPlanStatus;
   ready: boolean;
   alreadyApplied: boolean;
@@ -204,6 +215,10 @@ const ROADMAP_ARCHIVED_PATTERN = /^\s*-\s*\[([ xX])\]\s*archived:\s*(.+?)\s+—\
 const LEARNER_RECORD_PATTERN = /^\s*-\s*\[([ xX])\]\s*(gap|mastered|review):\s*(.+?)\s*$/u;
 const HEADING_PATTERN = /^(#{1,6})\s+(.+?)\s*$/u;
 const PLACEHOLDER_PATTERN = /^<[^>]+>$/u;
+
+function sha256(content: string | Uint8Array): string {
+  return createHash('sha256').update(content).digest('hex');
+}
 
 function normalizeLine(line: string): string {
   return line.endsWith('\r') ? line.slice(0, -1) : line;
@@ -577,13 +592,17 @@ export async function readProjectDocumentFeedbackContext(
       ? supplied.path
       : paths[id];
     let content: string;
+    let contentBytes: Buffer;
     if (typeof supplied === 'string') {
       content = supplied;
+      contentBytes = Buffer.from(content, 'utf8');
     } else if (supplied && typeof supplied === 'object') {
       content = supplied.content;
+      contentBytes = Buffer.from(content, 'utf8');
     } else {
       try {
-        content = await fs.readFile(documentPath, 'utf8');
+        contentBytes = await fs.readFile(documentPath);
+        content = contentBytes.toString('utf8');
       } catch (error) {
         const code = (error as NodeJS.ErrnoException).code;
         const missing = code === 'ENOENT' || code === 'ENOTDIR';
@@ -612,7 +631,7 @@ export async function readProjectDocumentFeedbackContext(
       }
     }
     const analysis = analyzeProjectDocument(id, content, documentPath);
-    analyses[id] = analysis;
+    analyses[id] = { ...analysis, contentSha256: sha256(contentBytes) };
     issues.push(...analysis.issues);
   }
 
@@ -835,7 +854,7 @@ function archiveRecordLine(changeName: string, outcome: string, state: 'pending'
  * select a section or record when the registered structure is ambiguous.
  */
 export async function planArchiveFeedback(input: ArchiveFeedbackPlanInput): Promise<ArchiveFeedbackPlan> {
-  const projectRoot = input.projectRoot ?? process.cwd();
+  const projectRoot = resolveFeedbackRoot(input.projectRoot ?? process.cwd());
   const suppliedDocuments = {
     ...(input.documents ?? {}),
     ...(input.projectContent !== undefined ? { project: input.projectContent } : {}),
@@ -892,6 +911,7 @@ export async function planArchiveFeedback(input: ArchiveFeedbackPlanInput): Prom
   if (issues.length > 0 || !roadmap || !learner || roadmap.content === undefined || learner.content === undefined) {
     return {
       changeName: input.changeName,
+      planningHome: projectRoot,
       status: 'blocked',
       ready: false,
       alreadyApplied: false,
@@ -916,6 +936,7 @@ export async function planArchiveFeedback(input: ArchiveFeedbackPlanInput): Prom
   if (issues.length > context.issues.length) {
     return {
       changeName: input.changeName,
+      planningHome: projectRoot,
       status: 'blocked',
       ready: false,
       alreadyApplied: false,
@@ -952,6 +973,7 @@ export async function planArchiveFeedback(input: ArchiveFeedbackPlanInput): Prom
   if (proposal.conflicts.length > 0) {
     return {
       changeName: input.changeName,
+      planningHome: projectRoot,
       status: 'blocked',
       ready: false,
       alreadyApplied: false,
@@ -969,6 +991,7 @@ export async function planArchiveFeedback(input: ArchiveFeedbackPlanInput): Prom
   if (existingArchived?.feedback === 'complete' && proposal.records.length === 0) {
     return {
       changeName: input.changeName,
+      planningHome: projectRoot,
       status: 'already-applied',
       ready: true,
       alreadyApplied: true,
@@ -997,6 +1020,7 @@ export async function planArchiveFeedback(input: ArchiveFeedbackPlanInput): Prom
     id: 'roadmap',
     path: roadmap.path,
     before: roadmap.content,
+    beforeSha256: roadmap.contentSha256 ?? sha256(roadmap.content),
     pendingContent: roadmapPending,
     completeContent: roadmapComplete,
     changed: roadmapPending !== roadmap.content || roadmapComplete !== roadmapPending,
@@ -1005,12 +1029,14 @@ export async function planArchiveFeedback(input: ArchiveFeedbackPlanInput): Prom
     id: 'learner',
     path: learner.path,
     before: learner.content,
+    beforeSha256: learner.contentSha256 ?? sha256(learner.content),
     proposedContent: learnerContent,
     changed: learnerContent !== learner.content,
   };
 
   return {
     changeName: input.changeName,
+    planningHome: projectRoot,
     status: 'ready',
     ready: true,
     alreadyApplied: false,
@@ -1065,6 +1091,67 @@ async function defaultAtomicWrite(filePath: string, content: string): Promise<vo
   }
 }
 
+function usesWindowsPathSemantics(...values: string[]): boolean {
+  return values.some((value) => path.win32.isAbsolute(value) && !path.isAbsolute(value));
+}
+
+function comparablePath(value: string, ...context: string[]): string {
+  const useWindows = usesWindowsPathSemantics(value, ...context);
+  const resolver = useWindows ? path.win32 : path;
+  const resolved = resolver.resolve(value);
+  return useWindows ? resolved.toLocaleLowerCase() : resolved;
+}
+
+function hasRegisteredTargetPath(planningHome: string, id: ProjectDocId, documentPath: string): boolean {
+  const expected = resolveProjectDocumentPaths(planningHome)[id];
+  return comparablePath(expected, planningHome, documentPath) === comparablePath(documentPath, planningHome, expected);
+}
+
+/**
+ * Validates every mutable document before the first write. The plan is bound
+ * to its selected planning home, registered target paths, and byte digests.
+ */
+async function preflightArchiveFeedbackPlan(
+  plan: ArchiveFeedbackPlan,
+  roadmapPlan: ArchiveFeedbackDocumentPlan,
+  learnerPlan: ArchiveFeedbackDocumentPlan
+): Promise<ProjectDocumentFeedbackIssue[]> {
+  const issues: ProjectDocumentFeedbackIssue[] = [];
+  if (typeof plan.planningHome !== 'string' || plan.planningHome.trim() === '') {
+    issues.push(issue('roadmap', 'precondition', 'Feedback plan has no selected planning home.'));
+    return issues;
+  }
+
+  const planned: Array<[ProjectDocId, ArchiveFeedbackDocumentPlan]> = [
+    ['roadmap', roadmapPlan],
+    ['learner', learnerPlan],
+  ];
+  for (const [id, document] of planned) {
+    if (document.id !== id) {
+      issues.push(issue(id, 'precondition', `Feedback plan identifies ${id} as ${String(document.id)}.`, document.path));
+      continue;
+    }
+    if (typeof document.path !== 'string' || !hasRegisteredTargetPath(plan.planningHome, id, document.path)) {
+      issues.push(issue(id, 'precondition', `Feedback plan path ${String(document.path)} is outside the registered ${id} target for ${plan.planningHome}.`, document.path));
+      continue;
+    }
+    if (typeof document.before !== 'string' || !/^[a-f0-9]{64}$/iu.test(document.beforeSha256)
+      || sha256(document.before) !== document.beforeSha256) {
+      issues.push(issue(id, 'precondition', `Feedback plan has an invalid ${id} content precondition.`, document.path));
+      continue;
+    }
+    try {
+      const current = await fs.readFile(document.path);
+      if (sha256(current) !== document.beforeSha256) {
+        issues.push(issue(id, 'conflict', `The registered ${id} document changed after planning; no feedback documents were written.`, document.path));
+      }
+    } catch (error) {
+      issues.push(issue(id, 'unreadable', `Cannot validate ${id} before writing ${document.path}: ${String(error)}.`, document.path));
+    }
+  }
+  return issues;
+}
+
 async function writePlannedDocument(
   plan: ArchiveFeedbackDocumentPlan,
   content: string,
@@ -1073,14 +1160,14 @@ async function writePlannedDocument(
   issues: ProjectDocumentFeedbackIssue[]
 ): Promise<boolean> {
   if (content === plan.before) return true;
-  let current: string;
+  let current: Buffer;
   try {
-    current = await fs.readFile(plan.path, 'utf8');
+    current = await fs.readFile(plan.path);
   } catch (error) {
     issues.push(issue(plan.id, 'unreadable', `Cannot reconcile ${plan.id} before writing ${plan.path}: ${String(error)}.`));
     return false;
   }
-  if (current !== plan.before) {
+  if (sha256(current) !== plan.beforeSha256) {
     issues.push(issue(plan.id, 'conflict', `The registered ${plan.id} document changed after planning; preserved the learner-authored edit.`, plan.path));
     return false;
   }
@@ -1125,16 +1212,19 @@ export async function applyArchiveFeedback(
       nextAction: 'Run /humanspec:next; no new change was created.',
     };
   }
-  if (options.confirmed === false) {
+  if (options.confirmed !== true) {
     return {
       status: 'blocked',
       feedbackState: 'pending',
       archivedChange: plan.changeName,
       writtenDocuments: [],
       pendingDocuments: ['roadmap', 'learner'],
-      issues,
+      issues: [
+        ...issues,
+        issue('roadmap', 'confirmation-required', 'Feedback application requires explicit confirmation; no documents were written.'),
+      ],
       reconciliationRequired: false,
-      nextAction: 'Feedback preview rejected; documents remain unchanged. Re-run the preview before reconciliation.',
+      nextAction: 'Feedback preview rejected or unconfirmed; explicitly confirm it before applying. Documents remain unchanged.',
     };
   }
 
@@ -1145,14 +1235,28 @@ export async function applyArchiveFeedback(
     if (!roadmapPlan) missing.push('roadmap');
     if (!learnerPlan) missing.push('learner');
     return {
-      status: 'pending',
+      status: 'blocked',
       feedbackState: 'pending',
       archivedChange: plan.changeName,
       writtenDocuments,
       pendingDocuments: missing.length > 0 ? missing : ['roadmap', 'learner'],
-      issues: [...issues, issue('roadmap', 'malformed', 'Feedback plan has no complete registered document operations.')],
-      reconciliationRequired: true,
-      nextAction: 'Re-run archive feedback reconciliation against the archived outcome.',
+      issues: [...issues, issue('roadmap', 'precondition', 'Feedback plan has no complete registered document operations.')],
+      reconciliationRequired: false,
+      nextAction: 'Create a new feedback preview with complete registered document operations.',
+    };
+  }
+
+  const preflightIssues = await preflightArchiveFeedbackPlan(plan, roadmapPlan, learnerPlan);
+  if (preflightIssues.length > 0) {
+    return {
+      status: 'conflict',
+      feedbackState: 'pending',
+      archivedChange: plan.changeName,
+      writtenDocuments,
+      pendingDocuments: ['roadmap', 'learner'],
+      issues: [...issues, ...preflightIssues],
+      reconciliationRequired: false,
+      nextAction: 'Create and explicitly confirm a new feedback preview before applying any document changes.',
     };
   }
 
@@ -1188,6 +1292,7 @@ export async function applyArchiveFeedback(
   const completePlan: ArchiveFeedbackDocumentPlan = {
     ...roadmapPlan,
     before: roadmapPlan.pendingContent,
+    beforeSha256: sha256(roadmapPlan.pendingContent),
   };
   const completeApplied = await writePlannedDocument(completePlan, roadmapPlan.completeContent, atomicWrite, writtenDocuments, issues);
   if (!completeApplied) {
@@ -1221,7 +1326,9 @@ export async function reconcileArchiveFeedback(
   options: ArchiveFeedbackApplyOptions = {}
 ): Promise<ArchiveFeedbackApplyResult> {
   const plan = await planArchiveFeedback(input);
-  return applyArchiveFeedback(plan, options);
+  // A pending marker can only have been created by an earlier confirmed run;
+  // reconciliation resumes that persisted operation without prompting again.
+  return applyArchiveFeedback(plan, { ...options, confirmed: options.confirmed ?? true });
 }
 
 /** Returns pending archived outcomes in a valid roadmap, in document order. */
